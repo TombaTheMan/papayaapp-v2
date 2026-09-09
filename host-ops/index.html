@@ -30,7 +30,7 @@
   --bg:#131120; --surface:#1c1a2c; --surface-2:#252239; --card:#1c1a2c;
   --text:#f2f0fa; --dim:#a29ebb; --border:#312d47;
   --accent:#8f74ff; --accent-2:#7e61f5; --accent-soft:#241f3d;
-  --green:#1fc98d; --orange:#ffb43d; --blue:#4ea6ff;
+  --green:#1fc98d; --orange:#ffb43d; --blue:#4ea6ff; --red:#f87171;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,0,0,.45);
 }
 html,body{background:var(--bg);color:var(--text)}
@@ -174,11 +174,14 @@ dialog menu button{flex:1}
 .btn-red{background:var(--red)}
 .btn-green{background:var(--green)}
 @media (hover:hover){
-  .btn:hover{transform:translateY(-1px) scale(1.015);box-shadow:0 6px 16px rgba(20,16,45,.18)}
-  .btn-ghost:hover{transform:translateY(-1px) scale(1.015);box-shadow:var(--shadow)}
+  .btn:hover{box-shadow:0 6px 16px rgba(20,16,45,.18)}
+  .btn:hover:not(:active){transform:translateY(-1px) scale(1.015)}
+  .btn-ghost:hover{box-shadow:var(--shadow)}
+  .btn-ghost:hover:not(:active){transform:translateY(-1px) scale(1.015)}
   .btn-red:hover{box-shadow:0 6px 16px color-mix(in srgb,var(--red) 40%,transparent)}
   .btn-green:hover{box-shadow:0 6px 16px color-mix(in srgb,var(--green) 40%,transparent)}
-  .ico:hover,.iconbtn:hover,.step:hover{transform:translateY(-1px) scale(1.07);opacity:.9}
+  .ico:hover,.iconbtn:hover,.step:hover{opacity:.9}
+  .ico:hover:not(:active),.iconbtn:hover:not(:active),.step:hover:not(:active){transform:translateY(-1px) scale(1.07)}
 }
 </style>
 </head>
@@ -504,9 +507,9 @@ function bookingCard(b, kind) {
          aria-label="Message guest on WhatsApp" ${phone ? "" : 'aria-disabled="true"'}>${I.chat}</a>
     </div>
 
-    ${kind === "in" && !b.arrived
+    ${kind === "in" && !b.arrived && selectedDate <= todayStr()
       ? `<button class="btn" style="margin-top:12px" data-action="mark-arrived" data-id="${b.id}">Arrived</button>` : ""}
-    ${kind === "out" && !b.departed
+    ${kind === "out" && !b.departed && selectedDate <= todayStr()
       ? `<button class="btn" style="margin-top:12px" data-action="mark-departed" data-id="${b.id}">They left</button>` : ""}
   </div>`;
 }
@@ -720,7 +723,13 @@ dlg.addEventListener("close", () => {
     if (b) { b.arrived = true; const apt = aptById(b.apartmentId); if (apt) apt.status = "occupied"; }
   } else if (form.dataset.form === "confirm-departed") {
     const b = db.bookings.find(x => x.id === form.dataset.id);
-    if (b) { b.departed = true; const apt = aptById(b.apartmentId); if (apt) apt.status = "cleaning"; }
+    if (b) {
+      b.departed = true;
+      const apt = aptById(b.apartmentId);
+      // don't downgrade status if a same-day turnover guest already checked in after this departure
+      const stillOccupied = db.bookings.some(x => x.apartmentId === b.apartmentId && x.id !== b.id && x.arrived && !x.departed);
+      if (apt && !stillOccupied) apt.status = "cleaning";
+    }
   }
   saveDB(db);
   render();
@@ -728,27 +737,25 @@ dlg.addEventListener("close", () => {
 
 /* ---- dialogs ---- */
 
-function dialogShell(kind, title, body) {
-  dlg.innerHTML = `<form method="dialog" class="dform" data-form="${kind}">
+function dialogShell(kind, title, body, { id, menu } = {}) {
+  dlg.innerHTML = `<form method="dialog" class="dform" data-form="${kind}"${id ? ` data-id="${id}"` : ""}>
     <h3>${title}</h3>
     ${body}
-    <menu>
+    <menu>${menu || `
       <button type="button" class="btn-ghost" data-action="dlg-cancel">Cancel</button>
-      <button value="ok" class="btn">Save</button>
+      <button value="ok" class="btn">Save</button>`}
     </menu>
   </form>`;
   dlg.showModal();
 }
 
 function confirmDialog(kind, id, message) {
-  dlg.innerHTML = `<form method="dialog" class="dform" data-form="${kind}" data-id="${id}">
-    <h3>${esc(message)}</h3>
-    <menu>
+  dialogShell(kind, esc(message), "", {
+    id,
+    menu: `
       <button type="button" class="btn btn-red" data-action="dlg-cancel">Cancel</button>
-      <button value="ok" class="btn btn-green">Confirm</button>
-    </menu>
-  </form>`;
-  dlg.showModal();
+      <button value="ok" class="btn btn-green">Confirm</button>`,
+  });
 }
 
 function openBookingDialog() {
