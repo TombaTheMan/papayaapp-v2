@@ -265,14 +265,9 @@ const prettyDate = iso => new Date(iso + "T00:00").toLocaleDateString(undefined,
 const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const mondayOf = iso => { const day = new Date(iso + "T00:00").getDay(); return addDays(iso, day === 0 ? -6 : 1 - day); };
 const weekDates = weekStart => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-const scheduleDayHeader = iso => {
-  const d = new Date(iso + "T00:00");
-  return `${WEEKDAY_NAMES[(d.getDay() + 6) % 7]}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`;
-};
-const weekRangeLabel = weekStart => {
-  const s = new Date(weekStart + "T00:00"), e = new Date(addDays(weekStart, 6) + "T00:00");
-  return `${pad(s.getDate())}.${pad(s.getMonth() + 1)} – ${pad(e.getDate())}.${pad(e.getMonth() + 1)}`;
-};
+const ddmm = iso => { const d = new Date(iso + "T00:00"); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`; };
+const scheduleDayHeader = iso => `${WEEKDAY_NAMES[(new Date(iso + "T00:00").getDay() + 6) % 7]}, ${ddmm(iso)}.`;
+const weekRangeLabel = weekStart => `${ddmm(weekStart)} – ${ddmm(addDays(weekStart, 6))}`;
 
 const nightsBetween = (arr, dep) =>
   Math.max(0, Math.round((new Date(dep + "T00:00") - new Date(arr + "T00:00")) / 86400000));
@@ -412,7 +407,8 @@ let ACCOUNTS = loadAccounts();
 let session = (() => { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; } })();
 let route = "checkinout";          // "checkinout" | "apartments" | "schedule" | "users"
 let selectedDate = todayStr();
-let activeZone = 1;
+// restore a worker's own zone as the default on page load too, not just at login time
+let activeZone = (session && session.role === "worker" && workerZone(session.username)) || 1;
 let scheduleWeekStart = mondayOf(todayStr());
 const openApts = new Set();        // expanded apartment ids
 
@@ -420,11 +416,12 @@ const isAdmin = () => session && session.role === "admin";
 const aptById = id => db.apartments.find(a => a.id === id);
 const accountName = username => (ACCOUNTS.find(a => a.username === username) || {}).name || "";
 
+const emptyScheduleWeek = () => ({ zones: { 1: [], 2: [], 3: [] }, night: {} });
 function getScheduleWeek(weekStart) {
-  return db.schedule[weekStart] || { zones: { 1: [], 2: [], 3: [] }, night: {} };
+  return db.schedule[weekStart] || emptyScheduleWeek();
 }
 function ensureScheduleWeek(weekStart) {
-  if (!db.schedule[weekStart]) db.schedule[weekStart] = { zones: { 1: [], 2: [], 3: [] }, night: {} };
+  if (!db.schedule[weekStart]) db.schedule[weekStart] = emptyScheduleWeek();
   return db.schedule[weekStart];
 }
 function workerZone(username) {
@@ -894,7 +891,9 @@ document.addEventListener("click", e => {
     case "sched-preset": {
       const [z, r, d] = dlg.querySelector("form").dataset.id.split("|");
       applyScheduleHours(+z, +r, d, el.dataset.value);
-      dlg.close();
+      // explicit non-"ok" value: dlg.close() with no arg leaves returnValue at whatever a PRIOR
+      // dialog's Save last set it to, which would make the close listener re-process this dialog
+      dlg.close("applied");
       break;
     }
     case "dlg-cancel":    dlg.close("cancel"); break;
@@ -1145,8 +1144,10 @@ function workerOptions(selected) {
 
 function openScheduleWorkerDialog(zone, rowIndex) {
   const current = getScheduleWeek(scheduleWeekStart).zones[zone][rowIndex]?.username || "";
+  // for a brand-new row, force an explicit pick instead of letting the browser default to the first worker
+  const placeholder = current ? "" : `<option value="" disabled selected>— Select worker —</option>`;
   dialogShell("sched-assign-row", `Zone ${zone} worker`, `
-    <label class="f">Worker<select name="username" required>${workerOptions(current)}</select></label>
+    <label class="f">Worker<select name="username" required>${placeholder}${workerOptions(current)}</select></label>
   `, { id: `${zone}|${rowIndex}` });
 }
 
