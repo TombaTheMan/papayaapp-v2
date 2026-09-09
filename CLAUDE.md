@@ -18,9 +18,10 @@ Every change to this project is committed and pushed automatically:
 ## What this is
 
 **Papaya Travel** (formerly "Host Ops") — a staff web app for managing check-ins/check-outs
-at short-term rental apartments in Novalja. Two roles: **worker** (on-site guest handling)
+at short-term rental apartments in Novalja, plus a weekly worker Schedule (zone assignments,
+shift hours, night shift). Two roles: **worker** (on-site guest handling, read-only Schedule)
 and **admin** (creates bookings/apartments, manages user accounts on the admin-only Users
-page). Standalone from the existing booking-management app.
+page, edits the Schedule). Standalone from the existing booking-management app.
 
 The entire application is one file: **`host-ops/index.html`** (~790 lines: inline
 `<style>` + inline `<script>`, no external assets). No framework, no build step, no
@@ -39,15 +40,28 @@ package manager, no dependency, and this directory is not a git repo.
 - **Demo logins:** `maria` / `maria123` (worker), `admin` / `admin123` (admin). Admins can
   add/edit accounts and promote/demote roles from the Users page; changes persist to
   `localStorage["hostops_accounts"]` and flow straight into the existing login lookup.
+  The Schedule seed data references 7 more worker accounts (`anja`, `tea`, `toma`, `jasna`,
+  `fran`, `toni`, `armin` — password `<username>123`), also from `seedAccounts()`.
 
 ## Architecture
 
-**State** lives in module-scoped variables in the script: `db` (`{apartments, bookings}`,
-persisted to `localStorage["hostops_db"]`), `ACCOUNTS` (persisted to
-`localStorage["hostops_accounts"]`, seeded from `seedAccounts()`), `session`
-(`localStorage["hostops_session"]`), `route` (`"checkinout" | "apartments" | "users"`),
-`selectedDate`. `render()` rebuilds the whole `#app` innerHTML from these on every change.
-`openApts` (a `Set`) keeps apartment-card expansion state across re-renders.
+**State** lives in module-scoped variables in the script: `db`
+(`{apartments, bookings, schedule}`, persisted to `localStorage["hostops_db"]`), `ACCOUNTS`
+(persisted to `localStorage["hostops_accounts"]`, seeded from `seedAccounts()`), `session`
+(`localStorage["hostops_session"]`), `route`
+(`"checkinout" | "apartments" | "schedule" | "users"`), `selectedDate`, `activeZone`
+(shared by the Apartments zone tabs and the Check in/out zone switcher), `scheduleWeekStart`.
+`render()` rebuilds the whole `#app` innerHTML from these on every change. `openApts` (a
+`Set`) keeps apartment-card expansion state across re-renders.
+
+**`db.schedule`** is keyed by week-start ISO date (Monday, via `mondayOf()`):
+`{ [monday]: { zones: {1:[row...], 2:[...], 3:[...]}, night: {[date]: username} } }`, where
+each zone row is `{ username, days: {[date]: "H:MM - H:MM" | "H:MM - H:MM // H:MM - H:MM" | "FREE"} }`.
+A worker's zone is fixed for the row's whole week; only the per-day cell value changes.
+Weeks are created lazily on first edit (`ensureScheduleWeek()`); reading an unedited week
+(`getScheduleWeek()`) returns an empty in-memory skeleton without writing to `db`, so
+browsing past/future weeks doesn't litter storage. `loadDB()` patches `schedule: {}` onto
+any pre-Schedule-feature saved data.
 
 **Events are fully delegated on `document`** (`click` / `input` / `change` / `submit`),
 attached once — never re-wired after a render. Handlers dispatch on `data-action` /
@@ -69,8 +83,18 @@ day in +02:00.
 `<select>`; workers get a read-only status pill. The Users page (`screenUsers()`) is
 admin-only end to end: hidden from `bottomNav()`, and `screenUsers()` itself falls back to
 the check-in/out screen if reached with a non-admin session. `route` resets to `"checkinout"`
-on logout so a worker who logs in next doesn't land on a stale admin route. Both roles
-otherwise see the same screens.
+on logout so a worker who logs in next doesn't land on a stale admin route. The Schedule page
+is visible to both roles (workers see it read-only — no `data-action` on its cells, so
+nothing is clickable) but every cell/row edit control checks `isAdmin()` individually rather
+than gating the whole screen, since workers still need to read it. Otherwise both roles see
+the same screens.
+
+**Zone concept is shared** between apartments (`apartment.zone`), the Check in/out zone
+switcher, and Schedule's zone groupings — all just the numbers 1/2/3, cross-referenced via
+`workerZone(username)` (searches this week's `db.schedule` for a row with that username).
+A worker's Check in/out zone tabs glow green (their assigned zone) / orange (others) via
+`workerZone()`; admins aren't assigned a zone so get plain tabs. Login also defaults
+`activeZone` to the logging-in worker's assigned zone.
 
 **Theme:** CSS custom properties on `:root`, with the dark palette duplicated under both
 `@media (prefers-color-scheme: dark)` and `:root[data-theme="dark"]`. Default follows the

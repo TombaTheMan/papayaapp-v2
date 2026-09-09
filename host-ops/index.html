@@ -185,6 +185,24 @@ dialog menu button{flex:1}
   .ico:hover,.iconbtn:hover,.step:hover{opacity:.9}
   .ico:hover:not(:active),.iconbtn:hover:not(:active),.step:hover:not(:active){transform:translateY(-1px) scale(1.07)}
 }
+
+/* --- zone tabs: "this is your zone" indicator (Check in/out only) --- */
+.seg button.zone-mine{box-shadow:inset 0 0 0 1.5px var(--green)}
+.seg button.zone-other{box-shadow:inset 0 0 0 1.5px var(--orange)}
+
+/* --- schedule table --- */
+.sched-wrap{overflow-x:auto}
+.sched-table{border-collapse:collapse;width:100%;min-width:640px}
+.sched-table th,.sched-table td{padding:10px 12px;font-size:13px;white-space:nowrap;border-bottom:1px solid var(--border);text-align:center}
+.sched-table th{color:var(--dim);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.sched-table th:first-child,.sched-table td:first-child{position:sticky;left:0;background:var(--card);text-align:left;font-weight:700;z-index:1}
+.sched-zone-row td{background:var(--surface-2);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);text-align:left}
+.sched-night>td{border-top:2px solid var(--border);font-weight:700}
+.sched-free{color:var(--dim);font-style:italic}
+.sched-table [data-action]{cursor:pointer}
+@media (hover:hover){
+  .sched-table [data-action]:hover{background:var(--accent-soft);border-radius:8px}
+}
 </style>
 </head>
 <body>
@@ -206,6 +224,14 @@ function seedAccounts() {
     { username: "maria", password: "maria123", name: "Maria", role: "worker" },
     { username: "luka",  password: "luka123",  name: "Luka",  role: "worker" },
     { username: "admin", password: "admin123", name: "Admin", role: "admin"  },
+    // Schedule seed data (below) references these by username.
+    { username: "anja",  password: "anja123",  name: "Anja",  role: "worker" },
+    { username: "tea",   password: "tea123",   name: "Tea",   role: "worker" },
+    { username: "toma",  password: "toma123",  name: "Toma",  role: "worker" },
+    { username: "jasna", password: "jasna123", name: "Jasna", role: "worker" },
+    { username: "fran",  password: "fran123",  name: "Fran",  role: "worker" },
+    { username: "toni",  password: "toni123",  name: "Toni",  role: "worker" },
+    { username: "armin", password: "armin123", name: "Armin", role: "worker" },
   ];
 }
 // ponytail: plaintext accounts in localStorage — fine for a no-backend prototype.
@@ -235,6 +261,18 @@ const fmtISO = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate
 const todayStr = () => fmtISO(new Date());
 const addDays = (iso, n) => { const d = new Date(iso + "T00:00"); d.setDate(d.getDate() + n); return fmtISO(d); };
 const prettyDate = iso => new Date(iso + "T00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const mondayOf = iso => { const day = new Date(iso + "T00:00").getDay(); return addDays(iso, day === 0 ? -6 : 1 - day); };
+const weekDates = weekStart => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+const scheduleDayHeader = iso => {
+  const d = new Date(iso + "T00:00");
+  return `${WEEKDAY_NAMES[(d.getDay() + 6) % 7]}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`;
+};
+const weekRangeLabel = weekStart => {
+  const s = new Date(weekStart + "T00:00"), e = new Date(addDays(weekStart, 6) + "T00:00");
+  return `${pad(s.getDate())}.${pad(s.getMonth() + 1)} – ${pad(e.getDate())}.${pad(e.getMonth() + 1)}`;
+};
 
 const nightsBetween = (arr, dep) =>
   Math.max(0, Math.round((new Date(dep + "T00:00") - new Date(arr + "T00:00")) / 86400000));
@@ -304,13 +342,41 @@ function seedDB() {
     // note: Sea Breeze Studio's current stay departs d(1) — it also drives tomorrow's check-out list.
   ];
 
-  return { apartments, bookings };
+  const weekStart = mondayOf(T);
+  return { apartments, bookings, schedule: { [weekStart]: seedSchedule(weekStart) } };
+}
+
+// transcribed from the reference weekly schedule (Mon..Sun), anchored to whatever week is "current" at seed time
+function seedSchedule(weekStart) {
+  const d = i => addDays(weekStart, i);
+  const row = (username, hours) => ({ username, days: Object.fromEntries(hours.map((h, i) => [d(i), h])) });
+  return {
+    zones: {
+      1: [
+        row("anja", ["16:00 - 00:00", "FREE", "8:00 - 16:00", "8:00 - 16:00", "16:00 - 00:00", "8:00 - 16:00", "8:00 - 16:00"]),
+        row("tea",  ["8:00 - 16:00", "16:00 - 00:00", "FREE", "16:00 - 00:00", "8:00 - 16:00", "16:00 - 00:00", "8:00 - 10:00 // 14:00 - 20:00"]),
+      ],
+      2: [
+        row("toma",  ["8:00 - 16:00", "8:00 - 16:00", "8:00 - 16:00", "8:00 - 16:00", "FREE", "8:00 - 16:00", "8:00 - 16:00"]),
+        row("jasna", ["16:00 - 00:00", "FREE", "16:00 - 00:00", "16:00 - 00:00", "8:00 - 16:00", "16:00 - 00:00", "8:00 - 10:00 // 16:00 - 22:00"]),
+      ],
+      3: [
+        row("fran", ["8:00 - 16:00", "16:00 - 00:00", "16:00 - 00:00", "FREE", "8:00 - 16:00", "8:00 - 16:00", "16:00 - 00:00"]),
+        row("toni", ["16:00 - 00:00", "8:00 - 16:00", "8:00 - 16:00", "8:00 - 16:00", "16:00 - 00:00", "FREE", "FREE"]),
+      ],
+    },
+    night: Object.fromEntries(["toni", "fran", "jasna", "armin", "tea", "toma", "toni"].map((u, i) => [d(i), u])),
+  };
 }
 
 function loadDB() {
   try {
     const raw = localStorage.getItem(DB_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (!parsed.schedule) parsed.schedule = {}; // upgrade older saved data that predates the Schedule feature
+      return parsed;
+    }
   } catch (e) { /* fall through to seed */ }
   const fresh = seedDB();
   saveDB(fresh);
@@ -344,13 +410,27 @@ if (location.search.includes("reset")) {
 let db = loadDB();
 let ACCOUNTS = loadAccounts();
 let session = (() => { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; } })();
-let route = "checkinout";          // "checkinout" | "apartments" | "users"
+let route = "checkinout";          // "checkinout" | "apartments" | "schedule" | "users"
 let selectedDate = todayStr();
 let activeZone = 1;
+let scheduleWeekStart = mondayOf(todayStr());
 const openApts = new Set();        // expanded apartment ids
 
 const isAdmin = () => session && session.role === "admin";
 const aptById = id => db.apartments.find(a => a.id === id);
+const accountName = username => (ACCOUNTS.find(a => a.username === username) || {}).name || "";
+
+function getScheduleWeek(weekStart) {
+  return db.schedule[weekStart] || { zones: { 1: [], 2: [], 3: [] }, night: {} };
+}
+function ensureScheduleWeek(weekStart) {
+  if (!db.schedule[weekStart]) db.schedule[weekStart] = { zones: { 1: [], 2: [], 3: [] }, night: {} };
+  return db.schedule[weekStart];
+}
+function workerZone(username) {
+  const week = getScheduleWeek(mondayOf(todayStr()));
+  return [1, 2, 3].find(z => week.zones[z].some(r => r.username === username)) || null;
+}
 
 function currentBooking(aptId) {
   const list = db.bookings
@@ -370,6 +450,8 @@ const I = {
   cal:   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>`,
   grid:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>`,
   user:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.9 3.1-6.5 7-6.5s7 2.6 7 6.5"/></svg>`,
+  table: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/></svg>`,
+  close: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
   pin:   `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg>`,
   chat:  `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 20l1.1-5.4A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8.5 9.5c0 3.6 2.9 6.5 6.5 6.5.6 0 1-.5 1-1.1 0-.3-.2-.6-.4-.8l-1.3-.9a1 1 0 0 0-1 0l-.6.4a4.6 4.6 0 0 1-2-2l.4-.6a1 1 0 0 0 0-1l-.9-1.3a1 1 0 0 0-.8-.4c-.6 0-1.1.4-1.1 1Z" fill="currentColor" stroke="none"/></svg>`,
   sun:   `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5 3.5 3.5M20.5 20.5 19 19M19 5l1.5-1.5M3.5 20.5 5 19"/></svg>`,
@@ -392,6 +474,7 @@ const dlg = $("#dlg");
 function render() {
   if (!session) { renderLogin(); return; }
   const screen = route === "apartments" ? screenApartments()
+    : route === "schedule" ? screenSchedule()
     : route === "users" ? screenUsers()
     : screenCheckInOut();
   app.innerHTML = topbar() + `<main class="fade">${screen}</main>` + bottomNav();
@@ -420,6 +503,7 @@ function bottomNav() {
   return `<nav class="nav"><div class="nav-inner">
     ${item("checkinout", "Check in/out", I.cal)}
     ${item("apartments", "Apartments", I.grid)}
+    ${item("schedule", "Schedule", I.table)}
     ${isAdmin() ? item("users", "Users", I.user) : ""}
   </div></nav>`;
 }
@@ -436,8 +520,15 @@ function screenCheckInOut() {
     .map(k => `<button data-action="reldate" data-rel="${k}" class="${rel === k ? "on" : ""}">${k[0].toUpperCase() + k.slice(1)}</button>`)
     .join("");
 
-  const ins  = db.bookings.filter(b => b.arrival_date === selectedDate);
-  const outs = db.bookings.filter(b => b.departure_date === selectedDate);
+  const myZone = isAdmin() ? null : workerZone(session.username);
+  const zoneTabs = [1, 2, 3].map(z => {
+    const cls = [activeZone === z ? "on" : "", myZone ? (myZone === z ? "zone-mine" : "zone-other") : ""]
+      .filter(Boolean).join(" ");
+    return `<button data-action="zone" data-zone="${z}" class="${cls}">Zone ${z}</button>`;
+  }).join("");
+
+  const ins  = db.bookings.filter(b => b.arrival_date === selectedDate && aptById(b.apartmentId)?.zone === activeZone);
+  const outs = db.bookings.filter(b => b.departure_date === selectedDate && aptById(b.apartmentId)?.zone === activeZone);
 
   const list = (arr, kind) => arr.length
     ? arr.map(b => bookingCard(b, kind)).join("")
@@ -448,6 +539,8 @@ function screenCheckInOut() {
       <h2>Check in / out</h2>
       ${isAdmin() ? `<button class="iconbtn" data-action="add-booking" aria-label="Add booking">${I.plus}</button>` : ""}
     </div>
+
+    <div class="seg" style="margin-top:14px">${zoneTabs}</div>
 
     <div style="margin-top:14px">
       <div class="seg">${seg}</div>
@@ -603,6 +696,73 @@ function apartmentCard(a) {
   </div>`;
 }
 
+/* ---- Schedule ---- */
+
+function screenSchedule() {
+  const week = getScheduleWeek(scheduleWeekStart);
+  const dates = weekDates(scheduleWeekStart);
+  const isThisWeek = scheduleWeekStart === mondayOf(todayStr());
+
+  const zoneSection = z => {
+    const rows = week.zones[z].map((r, i) => scheduleRow(z, i, r, dates)).join("");
+    const addBtn = isAdmin()
+      ? `<button class="ico" style="width:26px;height:26px;float:right" data-action="add-sched-row" data-zone="${z}" aria-label="Add worker to Zone ${z}">${I.plus}</button>` : "";
+    const empty = week.zones[z].length
+      ? "" : `<tr><td colspan="8" class="dim" style="text-align:center;padding:10px 0">No workers assigned yet.</td></tr>`;
+    return `<tr class="sched-zone-row"><td colspan="8">Zone ${z}${addBtn}</td></tr>${rows}${empty}`;
+  };
+
+  const nightCells = dates.map(d => {
+    const name = accountName(week.night[d]) || "—";
+    return isAdmin()
+      ? `<td data-action="edit-sched-night" data-date="${d}">${esc(name)}</td>`
+      : `<td>${esc(name)}</td>`;
+  }).join("");
+
+  return `<div class="screen">
+    <div class="between">
+      <h2>Schedule</h2>
+    </div>
+
+    <div style="margin-top:14px">
+      <div class="seg"><button data-action="sched-thisweek" class="${isThisWeek ? "on" : ""}">This week</button></div>
+      <div class="datestep">
+        <button class="step" data-action="sched-stepweek" data-step="-1" aria-label="Previous week">${I.left}</button>
+        <div style="flex:1;text-align:center;font-weight:600">${weekRangeLabel(scheduleWeekStart)}</div>
+        <button class="step" data-action="sched-stepweek" data-step="1" aria-label="Next week">${I.right}</button>
+      </div>
+    </div>
+
+    <div class="card sched-wrap" style="margin-top:14px;padding:0">
+      <table class="sched-table">
+        <thead><tr><th></th>${dates.map(d => `<th>${scheduleDayHeader(d)}</th>`).join("")}</tr></thead>
+        <tbody>
+          ${zoneSection(1)}${zoneSection(2)}${zoneSection(3)}
+          <tr class="sched-night"><td>Night Shift</td>${nightCells}</tr>
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function scheduleRow(zone, rowIndex, row, dates) {
+  const name = accountName(row.username) || "Unassigned";
+  const nameCell = isAdmin()
+    ? `<td class="sched-name"><span data-action="edit-sched-worker" data-zone="${zone}" data-row="${rowIndex}">${esc(name)}</span>
+         <button class="ico" style="width:22px;height:22px;margin-left:6px" data-action="remove-sched-row" data-zone="${zone}" data-row="${rowIndex}" aria-label="Remove ${esc(name)}">${I.close}</button></td>`
+    : `<td class="sched-name">${esc(name)}</td>`;
+
+  const cells = dates.map(d => {
+    const val = row.days[d];
+    const display = val === "FREE" ? `<span class="sched-free">Free</span>` : (val ? esc(val) : "—");
+    return isAdmin()
+      ? `<td data-action="edit-sched-hours" data-zone="${zone}" data-row="${rowIndex}" data-date="${d}">${display}</td>`
+      : `<td>${display}</td>`;
+  }).join("");
+
+  return `<tr>${nameCell}${cells}</tr>`;
+}
+
 /* ---- Users (admin-only) ---- */
 
 function screenUsers() {
@@ -714,6 +874,29 @@ document.addEventListener("click", e => {
       if (acc) confirmDialog("confirm-demote", acc.username, `Are you sure you want to demote ${acc.name} to worker?`);
       break;
     }
+    case "sched-thisweek": scheduleWeekStart = mondayOf(todayStr()); render(); break;
+    case "sched-stepweek": scheduleWeekStart = addDays(scheduleWeekStart, +el.dataset.step * 7); render(); break;
+    case "add-sched-row": {
+      const z = +el.dataset.zone;
+      openScheduleWorkerDialog(z, getScheduleWeek(scheduleWeekStart).zones[z].length);
+      break;
+    }
+    case "edit-sched-worker": openScheduleWorkerDialog(+el.dataset.zone, +el.dataset.row); break;
+    case "edit-sched-night":  openScheduleNightDialog(el.dataset.date); break;
+    case "edit-sched-hours":  openScheduleHoursDialog(+el.dataset.zone, +el.dataset.row, el.dataset.date); break;
+    case "remove-sched-row": {
+      const z = +el.dataset.zone, r = +el.dataset.row;
+      const worker = getScheduleWeek(scheduleWeekStart).zones[z][r];
+      const label = accountName(worker?.username) || "this row";
+      confirmDialog("confirm-remove-sched-row", `${z}|${r}`, `Remove ${label} from Zone ${z} this week?`);
+      break;
+    }
+    case "sched-preset": {
+      const [z, r, d] = dlg.querySelector("form").dataset.id.split("|");
+      applyScheduleHours(+z, +r, d, el.dataset.value);
+      dlg.close();
+      break;
+    }
     case "dlg-cancel":    dlg.close("cancel"); break;
   }
 });
@@ -758,6 +941,8 @@ document.addEventListener("submit", e => {
     if (!acc) { form.querySelector(".err").textContent = "Wrong username or password."; return; }
     session = { username: acc.username, name: acc.name, role: acc.role };
     try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) {}
+    const wz = acc.role === "worker" ? workerZone(acc.username) : null;
+    if (wz) activeZone = wz;
     render();
   } else if (form.dataset.form === "new-user" && e.submitter?.value === "ok") {
     const username = String(new FormData(form).get("username") || "").trim().toLowerCase();
@@ -840,8 +1025,24 @@ dlg.addEventListener("close", () => {
   } else if (form.dataset.form === "confirm-demote") {
     const acc = ACCOUNTS.find(x => x.username === form.dataset.id);
     if (acc) { acc.role = "worker"; saveAccounts(ACCOUNTS); syncSelfSession(acc); }
+  } else if (form.dataset.form === "sched-assign-row") {
+    const [zone, rowIndex] = form.dataset.id.split("|").map(Number);
+    const week = ensureScheduleWeek(scheduleWeekStart);
+    if (!week.zones[zone][rowIndex]) week.zones[zone][rowIndex] = { username: "", days: {} };
+    week.zones[zone][rowIndex].username = fd.get("username");
+  } else if (form.dataset.form === "sched-assign-night") {
+    ensureScheduleWeek(scheduleWeekStart).night[form.dataset.id] = fd.get("username") || "";
+  } else if (form.dataset.form === "sched-hours") {
+    const [zone, rowIndex, date] = form.dataset.id.split("|");
+    const custom = String(fd.get("custom") || "").trim();
+    if (custom) applyScheduleHours(+zone, +rowIndex, date, custom, false);
+  } else if (form.dataset.form === "confirm-remove-sched-row") {
+    const [zone, rowIndex] = form.dataset.id.split("|").map(Number);
+    ensureScheduleWeek(scheduleWeekStart).zones[zone].splice(rowIndex, 1);
   }
-  if (["booking", "apartment", "confirm-arrived", "confirm-departed"].includes(form.dataset.form)) saveDB(db);
+  const dbForms = ["booking", "apartment", "confirm-arrived", "confirm-departed",
+    "sched-assign-row", "sched-assign-night", "sched-hours", "confirm-remove-sched-row"];
+  if (dbForms.includes(form.dataset.form)) saveDB(db);
   render();
 });
 
@@ -927,6 +1128,48 @@ function openEditUserDialog(username) {
     <label class="f">Name<input name="name" value="${esc(a.name)}" required></label>
     <label class="f">Password<input name="password" value="${esc(a.password)}" required></label>
   `, { id: a.username });
+}
+
+function applyScheduleHours(zone, rowIndex, date, value, standalone = true) {
+  const week = ensureScheduleWeek(scheduleWeekStart);
+  const row = week.zones[zone][rowIndex];
+  if (!row) return;
+  row.days[date] = value;
+  if (standalone) { saveDB(db); render(); }
+}
+
+function workerOptions(selected) {
+  return ACCOUNTS.filter(a => a.role === "worker")
+    .map(w => `<option value="${esc(w.username)}" ${w.username === selected ? "selected" : ""}>${esc(w.name)}</option>`).join("");
+}
+
+function openScheduleWorkerDialog(zone, rowIndex) {
+  const current = getScheduleWeek(scheduleWeekStart).zones[zone][rowIndex]?.username || "";
+  dialogShell("sched-assign-row", `Zone ${zone} worker`, `
+    <label class="f">Worker<select name="username" required>${workerOptions(current)}</select></label>
+  `, { id: `${zone}|${rowIndex}` });
+}
+
+function openScheduleNightDialog(date) {
+  const current = getScheduleWeek(scheduleWeekStart).night[date] || "";
+  dialogShell("sched-assign-night", `Night shift — ${scheduleDayHeader(date)}`, `
+    <label class="f">Worker<select name="username"><option value="">— None —</option>${workerOptions(current)}</select></label>
+  `, { id: date });
+}
+
+function openScheduleHoursDialog(zone, rowIndex, date) {
+  const current = getScheduleWeek(scheduleWeekStart).zones[zone][rowIndex]?.days[date] || "";
+  const presets = ["8:00 - 16:00", "16:00 - 00:00", "FREE"];
+  const custom = presets.includes(current) ? "" : current;
+  dialogShell("sched-hours", `Hours — ${scheduleDayHeader(date)}`, `
+    <div class="row2">
+      <button type="button" class="btn-ghost" data-action="sched-preset" data-value="8:00 - 16:00">8:00 - 16:00</button>
+      <button type="button" class="btn-ghost" data-action="sched-preset" data-value="16:00 - 00:00">16:00 - 00:00</button>
+    </div>
+    <button type="button" class="btn-ghost" style="width:100%;margin-top:10px" data-action="sched-preset" data-value="FREE">Free</button>
+    <label class="f" style="margin-top:14px">Specific times
+      <input name="custom" value="${esc(custom)}" placeholder="8:00 - 10:00 // 14:00 - 20:00"></label>
+  `, { id: `${zone}|${rowIndex}|${date}` });
 }
 
 /* ---- theme ---- */
