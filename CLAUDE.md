@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Version control — auto-commit & push
+
+Every change to this project is committed and pushed automatically:
+
+- A **Stop hook** in `.claude/settings.json` runs `scripts/auto-commit.sh` after each
+  session. The script stages everything, commits only if something changed
+  (message `Auto-commit: <timestamp>`), and pushes when a git remote exists.
+- **Also commit and push explicitly** whenever you finish a meaningful unit of work —
+  don't rely solely on the Stop hook. Use a descriptive message for those; the hook's
+  timestamped commits are just a safety net for anything left uncommitted.
+- Remote is GitHub (`gh`-based). If `git push` fails because no remote is set, tell the
+  user to run `gh repo create` / add the `origin` remote; don't treat it as fatal.
+
 ## What this is
 
 **Host Ops** — a staff web app for managing check-ins/check-outs at short-term rental
