@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#6a44ff">
+<title>Host Ops</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none !important}
+:root{
+  color-scheme:light dark;
+  --bg:#ffffff; --surface:#f6f4fc; --surface-2:#edeafb; --card:#ffffff;
+  --text:#1b1830; --dim:#6c6885; --border:#e9e5f5;
+  --accent:#6a44ff; --accent-2:#5734ec; --accent-soft:#efeaff; --on-accent:#fff;
+  --green:#12b981; --orange:#f6a723; --blue:#3d9bff;
+  --shadow:0 1px 2px rgba(20,16,45,.05), 0 10px 30px rgba(20,16,45,.06);
+  --r:18px; --r-sm:12px; --ease:cubic-bezier(.2,.7,.2,1);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#131120; --surface:#1c1a2c; --surface-2:#252239; --card:#1c1a2c;
+    --text:#f2f0fa; --dim:#a29ebb; --border:#312d47;
+    --accent:#8f74ff; --accent-2:#7e61f5; --accent-soft:#241f3d;
+    --green:#1fc98d; --orange:#ffb43d; --blue:#4ea6ff;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131120; --surface:#1c1a2c; --surface-2:#252239; --card:#1c1a2c;
+  --text:#f2f0fa; --dim:#a29ebb; --border:#312d47;
+  --accent:#8f74ff; --accent-2:#7e61f5; --accent-soft:#241f3d;
+  --green:#1fc98d; --orange:#ffb43d; --blue:#4ea6ff;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,0,0,.45);
+}
+html,body{background:var(--bg);color:var(--text)}
+body{font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+#app{max-width:480px;margin:0 auto;min-height:100dvh;padding-bottom:100px}
+h2{font-size:22px;letter-spacing:-.02em;margin:2px 0}
+h3{font-size:17px;letter-spacing:-.01em;margin-bottom:12px}
+small,.dim{color:var(--dim)}
+button{font:inherit;cursor:pointer}
+a{color:var(--accent);text-decoration:none}
+
+/* --- chrome --- */
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:14px 18px;background:var(--bg);border-bottom:1px solid var(--border)}
+@supports (backdrop-filter:blur(1px)){
+  .topbar{background:color-mix(in srgb,var(--bg) 72%,transparent);backdrop-filter:blur(20px) saturate(160%);
+    border-bottom-color:color-mix(in srgb,var(--border) 55%,transparent)}
+}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:-.02em}
+.brand .mark{width:26px;height:26px;border-radius:8px;background:linear-gradient(150deg,var(--accent),var(--accent-2));
+  display:grid;place-items:center;color:#fff}
+.top-actions{display:flex;align-items:center;gap:8px}
+.who{font-size:13px;color:var(--dim);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.iconbtn{width:40px;height:40px;border:1px solid var(--border);background:var(--surface);color:var(--text);
+  border-radius:11px;display:grid;place-items:center;transition:transform .09s var(--ease)}
+.iconbtn:active{transform:scale(.94)}
+
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;
+  padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--border)}
+@supports (backdrop-filter:blur(1px)){
+  .nav{background:color-mix(in srgb,var(--bg) 72%,transparent);backdrop-filter:blur(20px) saturate(160%);
+    border-top-color:color-mix(in srgb,var(--border) 55%,transparent)}
+}
+.nav-inner{width:100%;max-width:480px;display:flex;gap:6px}
+.nav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:12px;
+  color:var(--dim);font-size:11px;font-weight:600;transition:background .18s var(--ease),color .18s var(--ease)}
+.nav a.on{color:var(--accent);background:var(--accent-soft)}
+
+/* --- layout --- */
+.screen{padding:16px 16px 8px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:10px;align-items:center}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.between{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.section-head{display:flex;align-items:center;gap:8px;margin:18px 2px 10px}
+.section-head .count{font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);
+  padding:2px 8px;border-radius:999px}
+
+@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.fade{animation:fade .22s var(--ease)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+.card + .card{margin-top:12px}
+.muted-card{background:var(--surface);box-shadow:none}
+
+.metric{font-size:30px;font-weight:700;letter-spacing:-.025em;line-height:1}
+.metric-label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+
+.pill{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;text-transform:capitalize;white-space:nowrap}
+.s-occupied{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.s-ready{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
+.s-cleaning{background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.d-occupied{background:var(--green)} .d-ready{background:var(--orange)} .d-cleaning{background:var(--blue)}
+
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:3px 0}
+.kv span:first-child{color:var(--dim)}
+.kv span:last-child{font-weight:600;text-align:right}
+
+.btn{border:0;background:var(--accent);color:var(--on-accent);font-weight:600;padding:12px 16px;border-radius:13px;
+  width:100%;transition:transform .09s var(--ease),background .15s}
+.btn:active{transform:scale(.98);background:var(--accent-2)}
+.btn-ghost{border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:600;
+  padding:12px 16px;border-radius:13px;transition:transform .09s var(--ease)}
+.btn-ghost:active{transform:scale(.98)}
+.btn-row{display:flex;gap:10px}
+
+label.f{display:block;font-size:12px;color:var(--dim);font-weight:700;margin-bottom:6px}
+input,select,textarea{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:11px 12px;width:100%}
+input[type=number]{-moz-appearance:textfield}
+textarea{resize:vertical;min-height:44px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.field + .field{margin-top:10px}
+
+/* action icons on a booking */
+.acts{display:flex;gap:8px}
+.ico{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;
+  background:var(--surface);border:1px solid var(--border);color:var(--accent);transition:transform .09s var(--ease)}
+.ico:active{transform:scale(.93)}
+.ico[aria-disabled=true]{opacity:.4;pointer-events:none}
+
+/* segmented date control */
+.seg{display:flex;background:var(--surface-2);border-radius:13px;padding:4px;gap:4px}
+.seg button{flex:1;border:0;background:transparent;color:var(--dim);font-weight:600;padding:9px 6px;
+  border-radius:10px;font-size:14px;transition:color .15s}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:var(--shadow)}
+.datestep{display:flex;align-items:center;gap:8px;margin-top:10px}
+.datestep input{text-align:center;font-weight:600}
+.step{width:44px;height:44px;flex:none;border:1px solid var(--border);background:var(--surface);border-radius:12px;
+  color:var(--text);display:grid;place-items:center;transition:transform .09s var(--ease)}
+.step:active{transform:scale(.93)}
+
+/* apartment card expand */
+.apt{cursor:pointer}
+.apt .exp{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s var(--ease)}
+.apt.open .exp{grid-template-rows:1fr}
+.apt .exp > div{overflow:hidden}
+.apt .exp .inner{padding-top:14px;margin-top:12px;border-top:1px solid var(--border)}
+.chev{transition:transform .25s var(--ease);color:var(--dim)}
+.apt.open .chev{transform:rotate(90deg)}
+
+.empty{text-align:center;color:var(--dim);padding:26px 10px;font-size:14px}
+
+/* dialog */
+dialog{border:0;border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+  width:100%;max-width:480px;margin:auto auto 0;background:var(--card);color:var(--text);box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(10,8,24,.45);backdrop-filter:blur(2px)}
+@media (min-width:520px){dialog{border-radius:22px;margin:auto}}
+dialog menu{display:flex;gap:10px;margin-top:16px;padding:0}
+dialog menu button{flex:1}
+.dform label.f{margin-top:12px}
+.dform h3{margin-bottom:4px}
+
+/* login */
+.login-wrap{min-height:100dvh;display:grid;place-items:center;padding:24px}
+.login{width:100%;max-width:340px;text-align:center}
+.login .mark-lg{width:56px;height:56px;border-radius:16px;margin:0 auto 16px;
+  background:linear-gradient(150deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#fff}
+.login .field{text-align:left}
+.login .btn{margin-top:16px}
+.hint{margin-top:14px;font-size:12px;color:var(--dim);line-height:1.7}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms !important;animation-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<dialog id="dlg"></dialog>
+
+<script>
+"use strict";
+
+/* ========================================================================
+   CONFIG — edit accounts, greeting messages and the tax rate here
+   ===================================================================== */
+
+const TAX_RATE = 1.60;            // € per tax-paying guest per night
+const TAX_FREE_AGE = 12;          // children this age and under don't pay (info only)
+
+const ACCOUNTS = [
+  { username: "maria", password: "maria123", name: "Maria", role: "worker" },
+  { username: "luka",  password: "luka123",  name: "Luka",  role: "worker" },
+  { username: "admin", password: "admin123", name: "Admin", role: "admin"  },
+];
+// ponytail: plaintext accounts in-file — fine for a no-backend prototype.
+//           add real auth (server + hashed passwords) before production.
+
+const MESSAGES = {
+  // Check-in: [worker name] + apartment [town] filled in. Exact template from spec.
+  checkin: (worker, town) =>
+    `Hi, my name is ${worker} and I am your host for staying in ${town}. ` +
+    `I just wanted to know when are you arriving? Also if you have any questions you can just ask me.`,
+  // Check-out: friendly default — edit freely.
+  checkout: (guest, apartment) =>
+    `Hi ${guest}, hope you're enjoying your stay at ${apartment}! ` +
+    `What time are you planning to check out today? Let me know if you need anything.`,
+};
+
+/* ========================================================================
+   HELPERS
+   ===================================================================== */
+
+const $ = (sel, el = document) => el.querySelector(sel);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const pad = n => String(n).padStart(2, "0");
+const fmtISO = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const todayStr = () => fmtISO(new Date());
+const addDays = (iso, n) => { const d = new Date(iso + "T00:00"); d.setDate(d.getDate() + n); return fmtISO(d); };
+const prettyDate = iso => new Date(iso + "T00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+const nightsBetween = (arr, dep) =>
+  Math.max(0, Math.round((new Date(dep + "T00:00") - new Date(arr + "T00:00")) / 86400000));
+const touristTax = (taxGuests, nights) => TAX_RATE * (Number(taxGuests) || 0) * nights;
+const recDeposit = (apt, booking) => (Number(apt?.deposit_per_person) || 0) * (Number(booking?.guest_count) || 0);
+const eur = n => "€" + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+const eur0 = n => "€" + (Math.round(Number(n) || 0));
+const digits = s => String(s || "").replace(/\D/g, "");
+
+/* ========================================================================
+   PERSISTENCE  (localStorage; seeded once with sample data)
+   ===================================================================== */
+
+const DB_KEY = "hostops_db";
+const SESSION_KEY = "hostops_session";
+const THEME_KEY = "hostops_theme";
+
+let uid = 0;
+const nextId = () => "id" + (++uid) + Date.now().toString(36);
+
+function seedDB() {
+  const T = todayStr(), d = n => addDays(T, n);
+  const apt = (name, address, zone, max_guests, dpp, status) =>
+    ({ id: nextId(), name, address, town: "Novalja", zone, max_guests, deposit_per_person: dpp, status });
+
+  const apartments = [
+    apt("Sea Breeze Studio",  "Dalmatinska ul. 12",          1, 2, 15, "occupied"),
+    apt("Olive Grove 1BR",    "Ul. Stjepana Radića 4",        1, 3, 15, "ready"),
+    apt("Harbour View 2BR",   "Obala Petra Krešimira IV 8",   1, 5, 12, "cleaning"),
+    apt("Pine Terrace",       "Ul. Slatinska 21",             2, 4, 15, "occupied"),
+    apt("Zrće Beach Loft",    "Zrće bb",                      2, 6, 20, "ready"),
+    apt("Old Town Nook",      "Ul. kralja Zvonimira 3",       2, 2, 20, "occupied"),
+    apt("Lavender House",     "Ul. Vidikovac 9",              3, 4, 15, "ready"),
+    apt("Adriatic Sun 3BR",   "Ul. braće Radić 30",           3, 6, 12, "occupied"),
+    apt("Cliffside Retreat",  "Ul. Gajac 14",                 3, 3, 20, "cleaning"),
+  ];
+  const byName = n => apartments.find(a => a.name === n).id;
+
+  const bk = (aptName, guest, phone, source, agency, guests, taxG, arr, dep, deposit, notes) => ({
+    id: nextId(), apartmentId: byName(aptName), guest_name: guest, guest_phone: phone,
+    booking_source: source, agency_name: agency || "",
+    guest_count: guests, tax_paying_guest_count: taxG,
+    arrival_date: arr, departure_date: dep,
+    actual_deposit_taken: deposit, notes: notes || "",
+  });
+
+  const bookings = [
+    // currently staying
+    bk("Sea Breeze Studio", "Emma Johansson", "+385 91 552 0148", "Airbnb", "", 2, 2, d(-2), d(1), 30, "Quiet couple, late risers."),
+    bk("Pine Terrace", "The Müller family", "+385 98 214 7733", "Booking.com", "", 4, 3, d(-1), d(2), 60, "2 adults + 2 kids (5, 9). Need a travel cot — dropped off."),
+    bk("Old Town Nook", "Lucas Rossi", "+385 92 771 0093", "Agency", "Sunny Stays d.o.o.", 2, 2, d(-3), d(3), 40, ""),
+    bk("Adriatic Sun 3BR", "Sophie Dubois", "+385 95 330 8890", "Airbnb", "", 6, 0, d(0), d(4), 0, "Arriving ~17:00 by ferry. Group of friends."),
+    // check-ins today
+    bk("Harbour View 2BR", "Nowak group", "+385 91 118 4402", "Booking.com", "", 5, 0, d(0), d(3), 0, "Back-to-back turnover — clean finishing this morning."),
+    // check-outs today
+    bk("Harbour View 2BR", "James Carter", "+385 99 640 1225", "Airbnb", "", 3, 3, d(-4), d(0), 36, "Leaving early, ~08:00."),
+    bk("Cliffside Retreat", "Petra Kovač", "+385 91 245 9981", "Agency", "Jadran Bookings", 3, 3, d(-5), d(0), 60, "Asked about a late checkout — said 12:00 max."),
+    // yesterday's checkout
+    bk("Olive Grove 1BR", "Anna Bauer", "+385 98 552 7010", "Booking.com", "", 2, 2, d(-4), d(-1), 30, ""),
+    // tomorrow's check-in
+    bk("Zrće Beach Loft", "Mark Evans", "+385 91 887 3320", "Airbnb", "", 5, 0, d(1), d(4), 0, "Party crowd — remind about quiet hours after 23:00."),
+    // upcoming (Olive Grove next guest)
+    bk("Olive Grove 1BR", "Isabella Conti", "+385 92 004 5561", "Agency", "Sunny Stays d.o.o.", 3, 0, d(2), d(6), 0, ""),
+    // note: Sea Breeze Studio's current stay departs d(1) — it also drives tomorrow's check-out list.
+  ];
+
+  return { apartments, bookings };
+}
+
+function loadDB() {
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* fall through to seed */ }
+  const fresh = seedDB();
+  saveDB(fresh);
+  return fresh;
+}
+function saveDB(d) {
+  try { localStorage.setItem(DB_KEY, JSON.stringify(d)); } catch (e) { /* private mode / full: keep in memory */ }
+}
+
+/* ========================================================================
+   STATE
+   ===================================================================== */
+
+if (location.search.includes("reset")) { try { localStorage.removeItem(DB_KEY); } catch (e) {} }
+
+let db = loadDB();
+let session = (() => { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; } })();
+let route = "checkinout";          // "checkinout" | "apartments"
+let selectedDate = todayStr();
+let activeZone = 1;
+const openApts = new Set();        // expanded apartment ids
+
+const isAdmin = () => session && session.role === "admin";
+const aptById = id => db.apartments.find(a => a.id === id);
+
+function currentBooking(aptId) {
+  const list = db.bookings
+    .filter(b => b.apartmentId === aptId)
+    .sort((a, b) => a.arrival_date < b.arrival_date ? -1 : 1);
+  const t = todayStr();
+  return list.find(b => b.arrival_date <= t && b.departure_date >= t)
+      || list.find(b => b.arrival_date > t)
+      || null;
+}
+
+/* ========================================================================
+   ICONS  (line icons, consistent 1.7 stroke, currentColor)
+   ===================================================================== */
+
+const I = {
+  cal:   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>`,
+  grid:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>`,
+  pin:   `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg>`,
+  chat:  `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 20l1.1-5.4A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8.5 9.5c0 3.6 2.9 6.5 6.5 6.5.6 0 1-.5 1-1.1 0-.3-.2-.6-.4-.8l-1.3-.9a1 1 0 0 0-1 0l-.6.4a4.6 4.6 0 0 1-2-2l.4-.6a1 1 0 0 0 0-1l-.9-1.3a1 1 0 0 0-.8-.4c-.6 0-1.1.4-1.1 1Z" fill="currentColor" stroke="none"/></svg>`,
+  sun:   `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5 3.5 3.5M20.5 20.5 19 19M19 5l1.5-1.5M3.5 20.5 5 19"/></svg>`,
+  moon:  `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5Z"/></svg>`,
+  out:   `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg>`,
+  plus:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
+  chev:  `<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>`,
+  left:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>`,
+  right: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>`,
+  arrow: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`,
+};
+
+/* ========================================================================
+   RENDER
+   ===================================================================== */
+
+const app = $("#app");
+const dlg = $("#dlg");
+
+function render() {
+  if (!session) { renderLogin(); return; }
+  app.innerHTML = topbar() + `<main class="fade">${route === "apartments" ? screenApartments() : screenCheckInOut()}</main>` + bottomNav();
+}
+
+function themeIcon() {
+  const dark = document.documentElement.dataset.theme === "dark"
+    || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme:dark)").matches);
+  return dark ? I.sun : I.moon;
+}
+
+function topbar() {
+  return `<header class="topbar">
+    <div class="brand"><span class="mark">${I.grid}</span> Host Ops</div>
+    <div class="top-actions">
+      <span class="who">${esc(session.name)}</span>
+      <button class="iconbtn" data-action="theme" aria-label="Toggle dark mode">${themeIcon()}</button>
+      <button class="iconbtn" data-action="logout" aria-label="Log out">${I.out}</button>
+    </div>
+  </header>`;
+}
+
+function bottomNav() {
+  const item = (r, label, icon) =>
+    `<a href="#" data-action="nav" data-route="${r}" class="${route === r ? "on" : ""}">${icon}<span>${label}</span></a>`;
+  return `<nav class="nav"><div class="nav-inner">
+    ${item("checkinout", "Check in/out", I.cal)}
+    ${item("apartments", "Apartments", I.grid)}
+  </div></nav>`;
+}
+
+/* ---- Check in / out ---- */
+
+function screenCheckInOut() {
+  const t = todayStr();
+  const rel = selectedDate === t ? "today"
+    : selectedDate === addDays(t, -1) ? "yesterday"
+    : selectedDate === addDays(t, 1) ? "tomorrow" : "";
+
+  const seg = ["yesterday", "today", "tomorrow"]
+    .map(k => `<button data-action="reldate" data-rel="${k}" class="${rel === k ? "on" : ""}">${k[0].toUpperCase() + k.slice(1)}</button>`)
+    .join("");
+
+  const ins  = db.bookings.filter(b => b.arrival_date === selectedDate);
+  const outs = db.bookings.filter(b => b.departure_date === selectedDate);
+
+  const list = (arr, kind) => arr.length
+    ? arr.map(b => bookingCard(b, kind)).join("")
+    : `<div class="empty">No ${kind === "in" ? "check-ins" : "check-outs"} on this day.</div>`;
+
+  return `<div class="screen">
+    <div class="between">
+      <h2>Check in / out</h2>
+      ${isAdmin() ? `<button class="iconbtn" data-action="add-booking" aria-label="Add booking">${I.plus}</button>` : ""}
+    </div>
+
+    <div style="margin-top:14px">
+      <div class="seg">${seg}</div>
+      <div class="datestep">
+        <button class="step" data-action="stepdate" data-step="-1" aria-label="Previous day">${I.left}</button>
+        <input type="date" value="${selectedDate}" data-action="pickdate" aria-label="Pick date">
+        <button class="step" data-action="stepdate" data-step="1" aria-label="Next day">${I.right}</button>
+      </div>
+    </div>
+
+    <div class="section-head"><h3>Check-ins</h3><span class="count">${ins.length}</span></div>
+    ${list(ins, "in")}
+
+    <div class="section-head"><h3>Check-outs</h3><span class="count">${outs.length}</span></div>
+    ${list(outs, "out")}
+  </div>`;
+}
+
+function bookingCard(b, kind) {
+  const apt = aptById(b.apartmentId) || {};
+  const nights = nightsBetween(b.arrival_date, b.departure_date);
+  const tax = touristTax(b.tax_paying_guest_count, nights);
+  const rec = recDeposit(apt, b);
+  const src = b.booking_source === "Agency" && b.agency_name ? `Agency · ${esc(b.agency_name)}` : esc(b.booking_source);
+
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${apt.address || ""}, ${apt.town || ""}`)}`;
+  const msg = kind === "in"
+    ? MESSAGES.checkin(session.name, apt.town || "Novalja")
+    : MESSAGES.checkout(b.guest_name, apt.name || "the apartment");
+  const phone = digits(b.guest_phone);
+  const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+
+  return `<div class="card" data-booking="${b.id}">
+    <div class="between">
+      <div>
+        <div style="font-weight:700;letter-spacing:-.01em">${esc(apt.name || "—")}</div>
+        <div class="dim" style="font-size:13px">${esc(b.guest_name)} · ${src}</div>
+      </div>
+      <span class="pill s-${apt.status || "ready"}">${apt.status || "—"}</span>
+    </div>
+
+    <div class="row2" style="margin-top:12px">
+      <div><div class="metric-label">Guests</div><div style="font-weight:600">${b.guest_count}</div></div>
+      <div><div class="metric-label">${nights} night${nights === 1 ? "" : "s"}</div>
+        <div style="font-weight:600">${prettyDate(b.arrival_date)} ${I.arrow} ${prettyDate(b.departure_date)}</div></div>
+    </div>
+
+    <div class="card muted-card" style="margin-top:12px">
+      <div class="between">
+        <div>
+          <div class="metric-label">Tourist tax due</div>
+          <div class="metric" data-tax-total>${eur(tax)}</div>
+          <div class="dim" style="font-size:12px;margin-top:2px">€${TAX_RATE.toFixed(2)} × pax × ${nights} night${nights === 1 ? "" : "s"} · over-${TAX_FREE_AGE}s only</div>
+        </div>
+        <div style="width:96px">
+          <label class="f">Tax-paying</label>
+          <input type="number" min="0" step="1" value="${b.tax_paying_guest_count}"
+                 data-field="tax_paying_guest_count" data-id="${b.id}" data-nights="${nights}" inputmode="numeric">
+        </div>
+      </div>
+    </div>
+
+    <div class="row2" style="margin-top:12px">
+      <div class="field">
+        <label class="f">Recommended deposit</label>
+        <input value="${eur0(rec)}" disabled>
+      </div>
+      <div class="field">
+        <label class="f">Deposit taken (€)</label>
+        <input type="number" min="0" step="1" value="${b.actual_deposit_taken}"
+               data-field="actual_deposit_taken" data-id="${b.id}" inputmode="numeric">
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:10px">
+      <label class="f">Notes</label>
+      <textarea rows="2" data-field="notes" data-id="${b.id}" placeholder="Notes about the guests…">${esc(b.notes)}</textarea>
+    </div>
+
+    <div class="acts" style="margin-top:12px">
+      <a class="ico" href="${mapsUrl}" target="_blank" rel="noopener" aria-label="Open in Google Maps">${I.pin}</a>
+      <a class="ico" href="${phone ? waUrl : "#"}" target="_blank" rel="noopener"
+         aria-label="Message guest on WhatsApp" ${phone ? "" : 'aria-disabled="true"'}>${I.chat}</a>
+    </div>
+  </div>`;
+}
+
+/* ---- Apartments ---- */
+
+function screenApartments() {
+  const tabs = [1, 2, 3].map(z =>
+    `<button data-action="zone" data-zone="${z}" class="${activeZone === z ? "on" : ""}">Zone ${z}</button>`).join("");
+
+  const apts = db.apartments.filter(a => a.zone === activeZone);
+  const cards = apts.length
+    ? apts.map(apartmentCard).join("")
+    : `<div class="empty">No apartments in Zone ${activeZone}.</div>`;
+
+  return `<div class="screen">
+    <div class="between">
+      <h2>Apartments</h2>
+      ${isAdmin() ? `<button class="iconbtn" data-action="add-apartment" aria-label="Add apartment">${I.plus}</button>` : ""}
+    </div>
+    <div class="seg" style="margin-top:14px">${tabs}</div>
+    <div class="stack" style="margin-top:14px">${cards}</div>
+  </div>`;
+}
+
+function apartmentCard(a) {
+  const open = openApts.has(a.id);
+  const b = currentBooking(a.id);
+  let detail;
+  if (b) {
+    const nights = nightsBetween(b.arrival_date, b.departure_date);
+    detail = `
+      <div class="kv"><span>Guest</span><span>${esc(b.guest_name)}</span></div>
+      <div class="kv"><span>Guests</span><span>${b.guest_count}</span></div>
+      <div class="kv"><span>Arrival</span><span>${prettyDate(b.arrival_date)}</span></div>
+      <div class="kv"><span>Departure</span><span>${prettyDate(b.departure_date)}</span></div>
+      <div class="kv"><span>Deposit collected</span><span>${eur0(b.actual_deposit_taken)}</span></div>
+      <div class="kv"><span>Tourist tax collected</span><span>${eur(touristTax(b.tax_paying_guest_count, nights))}</span></div>`;
+  } else {
+    detail = `<div class="empty" style="padding:14px 0">No current or upcoming reservation.</div>`;
+  }
+
+  const statusControl = isAdmin()
+    ? `<select data-field="apt-status" data-id="${a.id}" aria-label="Apartment status">
+         ${["occupied", "ready", "cleaning"].map(s => `<option value="${s}" ${a.status === s ? "selected" : ""}>${s}</option>`).join("")}
+       </select>`
+    : `<span class="pill s-${a.status}">${a.status}</span>`;
+
+  return `<div class="card apt ${open ? "open" : ""}" data-action="toggle-apt" data-id="${a.id}">
+    <div class="between">
+      <div class="row">
+        <span class="dot d-${a.status}"></span>
+        <div>
+          <div style="font-weight:700;letter-spacing:-.01em">${esc(a.name)}</div>
+          <div class="dim" style="font-size:12px">${esc(a.address)} · max ${a.max_guests} · ${eur0(a.deposit_per_person)}/pax</div>
+        </div>
+      </div>
+      <div class="row" style="gap:8px">${statusControl}${I.chev}</div>
+    </div>
+    <div class="exp"><div><div class="inner">${detail}</div></div></div>
+  </div>`;
+}
+
+/* ---- Login ---- */
+
+function renderLogin() {
+  app.innerHTML = `<div class="login-wrap"><form class="login fade" data-form="login">
+    <div class="mark-lg">${I.grid}</div>
+    <h2>Host Ops</h2>
+    <p class="dim" style="margin:4px 0 18px">Check-ins & check-outs</p>
+    <div class="field"><label class="f">Username</label>
+      <input name="username" autocomplete="username" autocapitalize="none" required></div>
+    <div class="field"><label class="f">Password</label>
+      <input name="password" type="password" autocomplete="current-password" required></div>
+    <button class="btn" type="submit">Log in</button>
+    <div class="err dim" style="color:var(--orange);margin-top:10px;min-height:16px"></div>
+    <div class="hint">Demo: <b>maria</b> / maria123 (worker)<br><b>admin</b> / admin123 (admin)</div>
+  </form></div>`;
+}
+
+/* ========================================================================
+   EVENTS  (delegated on document — survives re-render, reaches <dialog>)
+   ===================================================================== */
+
+function persistBooking(id, patch) {
+  const b = db.bookings.find(x => x.id === id);
+  if (!b) return;
+  Object.assign(b, patch);
+  saveDB(db);
+}
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-action]");
+  if (!el) return;
+  const a = el.dataset.action;
+
+  if (el.tagName === "A") e.preventDefault?.();
+
+  switch (a) {
+    case "nav":
+      route = el.dataset.route; render(); break;
+    case "theme":
+      toggleTheme(); break;
+    case "logout":
+      session = null; try { localStorage.removeItem(SESSION_KEY); } catch (e) {} render(); break;
+    case "reldate":
+      selectedDate = addDays(todayStr(), { yesterday: -1, today: 0, tomorrow: 1 }[el.dataset.rel]); render(); break;
+    case "stepdate":
+      selectedDate = addDays(selectedDate, +el.dataset.step); render(); break;
+    case "zone":
+      activeZone = +el.dataset.zone; render(); break;
+    case "toggle-apt": {
+      if (e.target.closest("select")) break;   // let the admin status dropdown work without collapsing the card
+      const id = el.dataset.id;
+      openApts.has(id) ? openApts.delete(id) : openApts.add(id);
+      el.classList.toggle("open");
+      break;
+    }
+    case "add-booking":   openBookingDialog(); break;
+    case "add-apartment": openApartmentDialog(); break;
+    case "dlg-cancel":    dlg.close("cancel"); break;
+  }
+});
+
+document.addEventListener("input", e => {
+  const el = e.target;
+  // live tourist-tax total while typing tax-paying guest count
+  if (el.dataset.field === "tax_paying_guest_count") {
+    const card = el.closest("[data-booking]");
+    const total = card && card.querySelector("[data-tax-total]");
+    if (total) total.textContent = eur(touristTax(el.value, +el.dataset.nights));
+  }
+  // agency name field visibility inside a dialog
+  if (el.name === "booking_source") {
+    const wrap = dlg.querySelector("[data-agency]");
+    if (wrap) wrap.hidden = el.value !== "Agency";
+  }
+});
+
+document.addEventListener("change", e => {
+  const el = e.target;
+  const f = el.dataset.field;
+  if (!f) return;
+
+  if (f === "tax_paying_guest_count") persistBooking(el.dataset.id, { tax_paying_guest_count: Math.max(0, +el.value || 0) });
+  else if (f === "actual_deposit_taken") persistBooking(el.dataset.id, { actual_deposit_taken: Math.max(0, +el.value || 0) });
+  else if (f === "notes") persistBooking(el.dataset.id, { notes: el.value });
+  else if (f === "apt-status") {
+    const apt = aptById(el.dataset.id);
+    if (apt) { apt.status = el.value; saveDB(db); render(); }
+  }
+});
+
+document.addEventListener("submit", e => {
+  const form = e.target;
+  if (form.dataset.form === "login") {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const u = String(fd.get("username")).trim().toLowerCase();
+    const p = String(fd.get("password"));
+    const acc = ACCOUNTS.find(x => x.username === u && x.password === p);
+    if (!acc) { form.querySelector(".err").textContent = "Wrong username or password."; return; }
+    session = { username: acc.username, name: acc.name, role: acc.role };
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) {}
+    render();
+  }
+});
+
+// dialog result
+dlg.addEventListener("close", () => {
+  const form = dlg.querySelector("form");
+  if (dlg.returnValue !== "ok" || !form) return;
+  const fd = new FormData(form);
+  const num = (k, d = 0) => { const n = Number(fd.get(k)); return Number.isFinite(n) ? n : d; };
+
+  if (form.dataset.form === "booking") {
+    db.bookings.push({
+      id: nextId(),
+      apartmentId: fd.get("apartmentId"),
+      guest_name: String(fd.get("guest_name")).trim(),
+      guest_phone: String(fd.get("guest_phone")).trim(),
+      booking_source: fd.get("booking_source"),
+      agency_name: fd.get("booking_source") === "Agency" ? String(fd.get("agency_name") || "").trim() : "",
+      guest_count: Math.max(1, num("guest_count", 1)),
+      tax_paying_guest_count: Math.max(0, num("tax_paying_guest_count", 0)),
+      arrival_date: fd.get("arrival_date"),
+      departure_date: fd.get("departure_date"),
+      actual_deposit_taken: Math.max(0, num("actual_deposit_taken", 0)),
+      notes: String(fd.get("notes") || "").trim(),
+    });
+  } else if (form.dataset.form === "apartment") {
+    db.apartments.push({
+      id: nextId(),
+      name: String(fd.get("name")).trim(),
+      address: String(fd.get("address")).trim(),
+      town: String(fd.get("town") || "Novalja").trim(),
+      zone: Math.min(3, Math.max(1, num("zone", 1))),
+      max_guests: Math.max(1, num("max_guests", 2)),
+      deposit_per_person: Math.max(0, num("deposit_per_person", 15)),
+      status: fd.get("status") || "ready",
+    });
+  }
+  saveDB(db);
+  render();
+});
+
+/* ---- dialogs ---- */
+
+function dialogShell(kind, title, body) {
+  dlg.innerHTML = `<form method="dialog" class="dform" data-form="${kind}">
+    <h3>${title}</h3>
+    ${body}
+    <menu>
+      <button type="button" class="btn-ghost" data-action="dlg-cancel">Cancel</button>
+      <button value="ok" class="btn">Save</button>
+    </menu>
+  </form>`;
+  dlg.showModal();
+}
+
+function openBookingDialog() {
+  const opts = db.apartments.map(a => `<option value="${a.id}">${esc(a.name)} (Zone ${a.zone})</option>`).join("");
+  const T = todayStr();
+  dialogShell("booking", "New check-in / check-out", `
+    <label class="f">Apartment<select name="apartmentId" required>${opts}</select></label>
+    <label class="f">Guest name<input name="guest_name" required></label>
+    <label class="f">Guest phone<input name="guest_phone" placeholder="+385 91 234 5678" inputmode="tel"></label>
+    <label class="f">Booking source
+      <select name="booking_source"><option>Airbnb</option><option>Booking.com</option><option>Agency</option></select></label>
+    <label class="f" data-agency hidden>Agency name<input name="agency_name"></label>
+    <div class="row2">
+      <label class="f">Guests<input type="number" name="guest_count" min="1" value="2" required inputmode="numeric"></label>
+      <label class="f">Tax-paying guests<input type="number" name="tax_paying_guest_count" min="0" value="0" inputmode="numeric"></label>
+    </div>
+    <div class="row2">
+      <label class="f">Arrival<input type="date" name="arrival_date" value="${T}" required></label>
+      <label class="f">Departure<input type="date" name="departure_date" value="${addDays(T, 3)}" required></label>
+    </div>
+    <label class="f">Deposit taken (€)<input type="number" name="actual_deposit_taken" min="0" value="0" inputmode="numeric"></label>
+    <label class="f">Notes<textarea name="notes" rows="2"></textarea></label>
+  `);
+}
+
+function openApartmentDialog() {
+  dialogShell("apartment", "New apartment", `
+    <label class="f">Name<input name="name" required></label>
+    <label class="f">Address<input name="address" placeholder="Street name & number" required></label>
+    <div class="row2">
+      <label class="f">Town / location<input name="town" value="Novalja"></label>
+      <label class="f">Zone<select name="zone"><option>1</option><option>2</option><option>3</option></select></label>
+    </div>
+    <div class="row2">
+      <label class="f">Max guests<input type="number" name="max_guests" min="1" value="4" inputmode="numeric"></label>
+      <label class="f">Deposit / person (€)<input type="number" name="deposit_per_person" min="0" value="15" inputmode="numeric"></label>
+    </div>
+    <label class="f">Status
+      <select name="status"><option value="ready">ready</option><option value="occupied">occupied</option><option value="cleaning">cleaning</option></select></label>
+  `);
+}
+
+/* ---- theme ---- */
+
+function toggleTheme() {
+  const cur = document.documentElement.dataset.theme
+    || (matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light");
+  const next = cur === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+  render();
+}
+(function initTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved) document.documentElement.dataset.theme = saved;
+  } catch (e) {}
+})();
+
+/* ========================================================================
+   SELF-CHECK  (runs once at startup; logs to console)
+   ===================================================================== */
+
+(function selfTest() {
+  const ok = (cond, label) => (cond ? console.log("%c✓ " + label, "color:#12b981")
+                                     : console.error("✗ " + label));
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  ok(nightsBetween("2026-09-08", "2026-09-11") === 3, "nights: 8→11 Sep = 3");
+  ok(nightsBetween("2026-09-08", "2026-09-08") === 0, "nights: same day = 0");
+  ok(near(touristTax(3, 4), 19.2), "tax: 3 pax × 4 nights = €19.20");
+  ok(touristTax(0, 5) === 0, "tax: 0 tax-paying guests = €0");
+  ok(eur(touristTax(3, 4)) === "€19.20", "tax formats to €19.20");
+  ok(recDeposit({ deposit_per_person: 15 }, { guest_count: 4 }) === 60, "deposit: €15 × 4 = €60");
+})();
+
+render();
+</script>
+</body>
+</html>
