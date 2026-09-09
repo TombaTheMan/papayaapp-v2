@@ -173,6 +173,8 @@ dialog menu button{flex:1}
 .btn,.btn-ghost,.ico,.iconbtn,.step{transition:transform .15s var(--ease),box-shadow .15s var(--ease),background .15s var(--ease),opacity .15s var(--ease)}
 .btn-red{background:var(--red)}
 .btn-green{background:var(--green)}
+.btn-red:active{background:var(--red)}
+.btn-green:active{background:var(--green)}
 @media (hover:hover){
   .btn:hover{box-shadow:0 6px 16px rgba(20,16,45,.18)}
   .btn:hover:not(:active){transform:translateY(-1px) scale(1.015)}
@@ -662,6 +664,13 @@ function persistBooking(id, patch) {
   saveDB(db);
 }
 
+// keep the live session (topbar name, isAdmin() checks) in sync when an admin edits their own account
+function syncSelfSession(acc) {
+  if (!session || acc.username !== session.username) return;
+  session = { username: acc.username, name: acc.name, role: acc.role };
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) {}
+}
+
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-action]");
   if (!el) return;
@@ -750,6 +759,13 @@ document.addEventListener("submit", e => {
     session = { username: acc.username, name: acc.name, role: acc.role };
     try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) {}
     render();
+  } else if (form.dataset.form === "new-user" && e.submitter?.value === "ok") {
+    const username = String(new FormData(form).get("username") || "").trim().toLowerCase();
+    const taken = !username || ACCOUNTS.some(x => x.username === username);
+    if (taken) {
+      e.preventDefault();
+      form.querySelector(".err").textContent = username ? "That username is already taken." : "Username is required.";
+    }
   }
 });
 
@@ -816,22 +832,23 @@ dlg.addEventListener("close", () => {
       acc.name = String(fd.get("name") || "").trim() || acc.name;
       acc.password = String(fd.get("password") || "").trim() || acc.password;
       saveAccounts(ACCOUNTS);
+      syncSelfSession(acc);
     }
   } else if (form.dataset.form === "confirm-promote") {
     const acc = ACCOUNTS.find(x => x.username === form.dataset.id);
-    if (acc) { acc.role = "admin"; saveAccounts(ACCOUNTS); }
+    if (acc) { acc.role = "admin"; saveAccounts(ACCOUNTS); syncSelfSession(acc); }
   } else if (form.dataset.form === "confirm-demote") {
     const acc = ACCOUNTS.find(x => x.username === form.dataset.id);
-    if (acc) { acc.role = "worker"; saveAccounts(ACCOUNTS); }
+    if (acc) { acc.role = "worker"; saveAccounts(ACCOUNTS); syncSelfSession(acc); }
   }
-  saveDB(db);
+  if (["booking", "apartment", "confirm-arrived", "confirm-departed"].includes(form.dataset.form)) saveDB(db);
   render();
 });
 
 /* ---- dialogs ---- */
 
 function dialogShell(kind, title, body, { id, menu } = {}) {
-  dlg.innerHTML = `<form method="dialog" class="dform" data-form="${kind}"${id ? ` data-id="${id}"` : ""}>
+  dlg.innerHTML = `<form method="dialog" class="dform" data-form="${kind}"${id ? ` data-id="${esc(id)}"` : ""}>
     <h3>${title}</h3>
     ${body}
     <menu>${menu || `
@@ -898,6 +915,7 @@ function openNewUserDialog() {
     <label class="f">Password<input name="password" required></label>
     <label class="f">Role
       <select name="role"><option value="worker">Worker</option><option value="admin">Admin</option></select></label>
+    <div class="err dim" style="color:var(--orange);margin-top:10px;min-height:16px"></div>
   `);
 }
 
