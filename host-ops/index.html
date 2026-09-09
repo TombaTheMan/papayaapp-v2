@@ -94,8 +94,9 @@ a{color:var(--accent);text-decoration:none}
 .s-occupied{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
 .s-ready{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
 .s-cleaning{background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)}
+.s-terminated{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
 .dot{width:9px;height:9px;border-radius:50%;flex:none}
-.d-occupied{background:var(--green)} .d-ready{background:var(--orange)} .d-cleaning{background:var(--blue)}
+.d-occupied{background:var(--green)} .d-ready{background:var(--orange)} .d-cleaning{background:var(--blue)} .d-terminated{background:var(--red)}
 
 .kv{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:3px 0}
 .kv span:first-child{color:var(--dim)}
@@ -150,7 +151,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 dialog{border:0;border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
   width:100%;max-width:480px;margin:auto auto 0;background:var(--card);color:var(--text);box-shadow:var(--shadow)}
 dialog::backdrop{background:rgba(10,8,24,.45);backdrop-filter:blur(2px)}
-@media (min-width:520px){dialog{border-radius:22px;margin:auto}}
+@media (min-width:520px){dialog{border-radius:22px;margin:auto;max-width:520px}}
+dialog[open]{animation:dlgpop .2s var(--ease)}
+dialog[open]::backdrop{animation:fade .2s var(--ease)}
+@keyframes dlgpop{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 dialog menu{display:flex;gap:10px;margin-top:16px;padding:0}
 dialog menu button{flex:1}
 .dform label.f{margin-top:12px}
@@ -190,18 +194,55 @@ dialog menu button{flex:1}
 .seg button.zone-mine{box-shadow:inset 0 0 0 1.5px var(--green)}
 .seg button.zone-other{box-shadow:inset 0 0 0 1.5px var(--orange)}
 
-/* --- schedule table --- */
+/* --- schedule table: colourful, cell-based grid --- */
 .sched-wrap{overflow-x:auto}
-.sched-table{border-collapse:collapse;width:100%;min-width:640px}
-.sched-table th,.sched-table td{padding:10px 12px;font-size:13px;white-space:nowrap;border-bottom:1px solid var(--border);text-align:center}
-.sched-table th{color:var(--dim);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
-.sched-table th:first-child,.sched-table td:first-child{position:sticky;left:0;background:var(--card);text-align:left;font-weight:700;z-index:1}
-.sched-zone-row td{background:var(--surface-2);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);text-align:left}
-.sched-night>td{border-top:2px solid var(--border);font-weight:700}
-.sched-free{color:var(--dim);font-style:italic}
-.sched-table [data-action]{cursor:pointer}
+.sched-table{border-collapse:separate;border-spacing:6px;width:100%;min-width:660px}
+.sched-table th{color:var(--dim);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.04em;padding:6px 8px;text-align:center}
+.sched-table th:first-child{text-align:left;position:sticky;left:0;background:var(--card);z-index:2}
+.sched-table td{font-size:13px;white-space:nowrap;text-align:center;padding:10px 10px;border-radius:11px;
+  background:var(--surface);border:1px solid var(--border);transition:transform .12s var(--ease),box-shadow .12s var(--ease),border-color .12s var(--ease)}
+.sched-table td.sched-name{position:sticky;left:0;z-index:1;text-align:left;font-weight:800;letter-spacing:-.01em;
+  background:var(--surface-2);border-color:var(--border)}
+.sched-cell.sched-work{background:color-mix(in srgb,var(--accent) 13%,var(--card));
+  border-color:color-mix(in srgb,var(--accent) 30%,transparent);color:var(--text);font-weight:700}
+.sched-cell.sched-split{font-weight:700;border-color:color-mix(in srgb,var(--accent) 30%,transparent);
+  background:linear-gradient(114deg,color-mix(in srgb,var(--accent) 15%,var(--card)) 0 47%,
+    color-mix(in srgb,var(--blue) 15%,var(--card)) 53% 100%)}
+.sched-cell.sched-free{background:var(--surface);color:var(--dim);font-style:italic}
+.sched-cell.sched-empty{background:var(--surface);color:var(--dim)}
+.sched-zone-row td{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:var(--on-accent);
+  font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.08em;text-align:left;border:0}
+.sched-zone-row td .ico{color:var(--on-accent);border-color:color-mix(in srgb,#fff 35%,transparent);
+  background:color-mix(in srgb,#fff 14%,transparent)}
+.sched-night td{background:var(--surface-2);border-color:var(--border);font-weight:700}
+.sched-night td.sched-name{background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)}
+.sched-table td[data-action]{cursor:pointer}
 @media (hover:hover){
-  .sched-table [data-action]:hover{background:var(--accent-soft);border-radius:8px}
+  .sched-table td[data-action]:hover{border-color:var(--accent);box-shadow:0 5px 14px rgba(20,16,45,.14);transform:translateY(-1px)}
+}
+
+/* --- desktop / wide-viewport layout (mobile below 768 is untouched) --- */
+@media (min-width:768px) and (max-width:1023px){
+  #app{max-width:720px}
+}
+@media (min-width:1024px){
+  #app{max-width:1140px;padding-bottom:32px;display:flex;flex-direction:column}
+  .topbar{order:0;position:static}
+  .nav{order:1;position:sticky;top:0;bottom:auto;border-top:0;border-bottom:1px solid var(--border)}
+  .nav-inner{max-width:none;justify-content:center;gap:8px}
+  .nav a{flex:0 1 168px;flex-direction:row;justify-content:center;gap:7px;font-size:12px}
+  main{order:2}
+  .screen{padding:24px}
+  .cardgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+  .cardgrid>.card{margin-top:0}
+  .cardgrid>.empty{grid-column:1/-1}
+  .stack{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+  .stack>.card{margin-top:0}
+  dialog{max-width:600px}
+  .sched-table{min-width:0}
+}
+@media (min-width:1440px){
+  .cardgrid{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 </style>
 </head>
@@ -237,16 +278,27 @@ function seedAccounts() {
 // ponytail: plaintext accounts in localStorage — fine for a no-backend prototype.
 //           add real auth (server + hashed passwords) before production.
 
-const MESSAGES = {
-  // Check-in: [worker name] + apartment [town] filled in. Exact template from spec.
-  checkin: (worker, town) =>
-    `Hi, my name is ${worker} and I am your host for staying in ${town}. ` +
-    `I just wanted to know when are you arriving? Also if you have any questions you can just ask me.`,
-  // Check-out: friendly default — edit freely.
-  checkout: (guest, apartment) =>
-    `Hi ${guest}, hope you're enjoying your stay at ${apartment}! ` +
-    `What time are you planning to check out today? Let me know if you need anything.`,
+// WhatsApp message templates — token strings, not functions, so admins can edit them
+// (Users → Message templates). db.templates overrides these; fall back here if unset.
+const DEFAULT_TEMPLATES = {
+  checkin:
+    "Hi, my name is {worker} and I am your host for staying in {town}. " +
+    "I just wanted to know when are you arriving? Also if you have any questions you can just ask me.",
+  checkout:
+    "Hi {guest}, hope you're enjoying your stay at {apartment}! " +
+    "What time are you planning to check out today? Let me know if you need anything.",
+  checkoutReminder:
+    "Hi {guest}, I hope you had a nice stay, tomorrow is your checkout, just wanted to remind you " +
+    "that it is at {time}, please be ready then, I will come to check the apartment and pick up the keys. " +
+    "Please take out the trash before I come. Thanks.",
 };
+const TEMPLATE_LABELS = { checkin: "Check-in", checkout: "Check-out", checkoutReminder: "Checkout reminder" };
+const TEMPLATE_TOKENS = {
+  checkin: ["{worker}", "{town}"],
+  checkout: ["{guest}", "{apartment}"],
+  checkoutReminder: ["{guest}", "{time}"],
+};
+const DEFAULT_CHECKOUT_TIME = "9:00";
 
 /* ========================================================================
    HELPERS
@@ -276,6 +328,19 @@ const recDeposit = (apt, booking) => (Number(apt?.deposit_per_person) || 0) * (N
 const eur = n => "€" + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
 const eur0 = n => "€" + (Math.round(Number(n) || 0));
 const digits = s => String(s || "").replace(/\D/g, "");
+
+const templateText = key => (db.templates && db.templates[key]) || DEFAULT_TEMPLATES[key];
+const fillTemplate = (str, vars) => String(str).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+function buildMessage(kind, b, apt) {
+  const key = kind === "in" ? "checkin" : kind === "reminder" ? "checkoutReminder" : "checkout";
+  return fillTemplate(templateText(key), {
+    worker: (session && session.name) || "",
+    town: apt.town || "Novalja",
+    guest: b.guest_name,
+    apartment: apt.name || "the apartment",
+    time: b.checkout_time || DEFAULT_CHECKOUT_TIME,
+  });
+}
 
 /* ========================================================================
    PERSISTENCE  (localStorage; seeded once with sample data)
@@ -431,7 +496,7 @@ function workerZone(username) {
 
 function currentBooking(aptId) {
   const list = db.bookings
-    .filter(b => b.apartmentId === aptId)
+    .filter(b => b.apartmentId === aptId && !b.departed && b.status !== "terminated")
     .sort((a, b) => a.arrival_date < b.arrival_date ? -1 : 1);
   const t = todayStr();
   return list.find(b => b.arrival_date <= t && b.departure_date >= t)
@@ -459,6 +524,9 @@ const I = {
   left:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>`,
   right: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>`,
   arrow: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`,
+  bell:  `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>`,
+  edit:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+  trash: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M9 7V4h6v3"/></svg>`,
 };
 
 /* ========================================================================
@@ -549,10 +617,10 @@ function screenCheckInOut() {
     </div>
 
     <div class="section-head"><h3>Check-ins</h3><span class="count">${ins.length}</span></div>
-    ${list(ins, "in")}
+    <div class="cardgrid">${list(ins, "in")}</div>
 
     <div class="section-head"><h3>Check-outs</h3><span class="count">${outs.length}</span></div>
-    ${list(outs, "out")}
+    <div class="cardgrid">${list(outs, "out")}</div>
   </div>`;
 }
 
@@ -564,11 +632,29 @@ function bookingCard(b, kind) {
   const src = b.booking_source === "Agency" && b.agency_name ? `Agency · ${esc(b.agency_name)}` : esc(b.booking_source);
 
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${apt.address || ""}, ${apt.town || ""}`)}`;
-  const msg = kind === "in"
-    ? MESSAGES.checkin(session.name, apt.town || "Novalja")
-    : MESSAGES.checkout(b.guest_name, apt.name || "the apartment");
   const phone = digits(b.guest_phone);
-  const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  const terminated = b.status === "terminated";
+  const cleaning = apt.status === "cleaning";
+  const canAct = selectedDate <= todayStr();
+
+  const statusPill = terminated
+    ? `<span class="pill s-terminated">Terminated</span>`
+    : `<span class="pill s-${apt.status || "ready"}">${apt.status || "—"}</span>`;
+
+  const waBtn = (k, icon, label) =>
+    `<button class="ico" data-action="wa-msg" data-id="${b.id}" data-kind="${k}" aria-label="${label}"${phone ? "" : ' aria-disabled="true"'}>${icon}</button>`;
+
+  let actionBtns = "";
+  if (!terminated) {
+    if (cleaning)  // apartment state, not a dated action — always offer the way back to "ready"
+      actionBtns += `<button class="btn btn-green" style="margin-top:12px" data-action="mark-clean" data-id="${b.apartmentId}">Apartment is clean</button>`;
+    else if (canAct && kind === "in" && !b.arrived)
+      actionBtns += `<button class="btn" style="margin-top:12px" data-action="mark-arrived" data-id="${b.id}">Arrived</button>`;
+    else if (canAct && kind === "out" && !b.departed)
+      actionBtns += `<button class="btn" style="margin-top:12px" data-action="mark-departed" data-id="${b.id}">They left</button>`;
+  }
+  if (isAdmin() && !terminated && (kind === "in" ? !b.arrived : !b.departed))
+    actionBtns += `<button class="btn btn-red" style="margin-top:8px" data-action="terminate-booking" data-id="${b.id}">Terminate</button>`;
 
   return `<div class="card" data-booking="${b.id}">
     <div class="between">
@@ -576,7 +662,7 @@ function bookingCard(b, kind) {
         <div style="font-weight:700;letter-spacing:-.01em">${esc(apt.name || "—")}</div>
         <div class="dim" style="font-size:13px">${esc(b.guest_name)} · ${src}</div>
       </div>
-      <span class="pill s-${apt.status || "ready"}">${apt.status || "—"}</span>
+      ${statusPill}
     </div>
 
     <div class="row2" style="margin-top:12px">
@@ -619,14 +705,11 @@ function bookingCard(b, kind) {
 
     <div class="acts" style="margin-top:12px">
       <a class="ico" href="${mapsUrl}" target="_blank" rel="noopener" aria-label="Open in Google Maps">${I.pin}</a>
-      <a class="ico" href="${phone ? waUrl : "#"}" target="_blank" rel="noopener"
-         aria-label="Message guest on WhatsApp" ${phone ? "" : 'aria-disabled="true"'}>${I.chat}</a>
+      ${waBtn(kind === "in" ? "in" : "out", I.chat, "Message guest on WhatsApp")}
+      ${kind === "out" ? waBtn("reminder", I.bell, "Send checkout reminder message") : ""}
     </div>
 
-    ${kind === "in" && !b.arrived && selectedDate <= todayStr()
-      ? `<button class="btn" style="margin-top:12px" data-action="mark-arrived" data-id="${b.id}">Arrived</button>` : ""}
-    ${kind === "out" && !b.departed && selectedDate <= todayStr()
-      ? `<button class="btn" style="margin-top:12px" data-action="mark-departed" data-id="${b.id}">They left</button>` : ""}
+    ${actionBtns}
   </div>`;
 }
 
@@ -678,6 +761,15 @@ function apartmentCard(a) {
        </select>`
     : `<span class="pill s-${a.status}">${a.status}</span>`;
 
+  const adminCtl = isAdmin()
+    ? `<button class="ico" style="width:34px;height:34px" data-action="edit-apartment" data-id="${a.id}" aria-label="Edit ${esc(a.name)}">${I.edit}</button>
+       <button class="ico" style="width:34px;height:34px" data-action="delete-apartment" data-id="${a.id}" aria-label="Delete ${esc(a.name)}">${I.trash}</button>`
+    : "";
+
+  const cleanBtn = a.status === "cleaning"
+    ? `<button class="btn btn-green" style="margin-top:10px" data-action="mark-clean" data-id="${a.id}">Apartment is clean</button>`
+    : "";
+
   return `<div class="card apt ${open ? "open" : ""}" data-action="toggle-apt" data-id="${a.id}">
     <div class="between">
       <div class="row">
@@ -687,8 +779,9 @@ function apartmentCard(a) {
           <div class="dim" style="font-size:12px">${esc(a.address)} · max ${a.max_guests} · ${eur0(a.deposit_per_person)}/pax</div>
         </div>
       </div>
-      <div class="row" style="gap:8px">${statusControl}${I.chev}</div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end">${adminCtl}${statusControl}${I.chev}</div>
     </div>
+    ${cleanBtn}
     <div class="exp"><div><div class="inner">${detail}</div></div></div>
   </div>`;
 }
@@ -712,8 +805,8 @@ function screenSchedule() {
   const nightCells = dates.map(d => {
     const name = accountName(week.night[d]) || "—";
     return isAdmin()
-      ? `<td data-action="edit-sched-night" data-date="${d}">${esc(name)}</td>`
-      : `<td>${esc(name)}</td>`;
+      ? `<td class="sched-cell" data-action="edit-sched-night" data-date="${d}">${esc(name)}</td>`
+      : `<td class="sched-cell">${esc(name)}</td>`;
   }).join("");
 
   return `<div class="screen">
@@ -735,7 +828,7 @@ function screenSchedule() {
         <thead><tr><th></th>${dates.map(d => `<th>${scheduleDayHeader(d)}</th>`).join("")}</tr></thead>
         <tbody>
           ${zoneSection(1)}${zoneSection(2)}${zoneSection(3)}
-          <tr class="sched-night"><td>Night Shift</td>${nightCells}</tr>
+          <tr class="sched-night"><td class="sched-name">Night Shift</td>${nightCells}</tr>
         </tbody>
       </table>
     </div>
@@ -751,10 +844,12 @@ function scheduleRow(zone, rowIndex, row, dates) {
 
   const cells = dates.map(d => {
     const val = row.days[d];
-    const display = val === "FREE" ? `<span class="sched-free">Free</span>` : (val ? esc(val) : "—");
+    const type = !val || val === "—" ? "empty" : val === "FREE" ? "free" : val.includes("//") ? "split" : "work";
+    const display = type === "free" ? "Free" : type === "empty" ? "—" : esc(val);
+    const cls = `sched-cell sched-${type}`;
     return isAdmin()
-      ? `<td data-action="edit-sched-hours" data-zone="${zone}" data-row="${rowIndex}" data-date="${d}">${display}</td>`
-      : `<td>${display}</td>`;
+      ? `<td class="${cls}" data-action="edit-sched-hours" data-zone="${zone}" data-row="${rowIndex}" data-date="${d}">${display}</td>`
+      : `<td class="${cls}">${display}</td>`;
   }).join("");
 
   return `<tr>${nameCell}${cells}</tr>`;
@@ -769,6 +864,15 @@ function screenUsers() {
     <div class="between">
       <h2>Users</h2>
       <button class="iconbtn" data-action="add-user" aria-label="Add user">${I.plus}</button>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="between">
+        <div>
+          <div style="font-weight:700;letter-spacing:-.01em">Message templates</div>
+          <div class="dim" style="font-size:12px">WhatsApp check-in, check-out &amp; reminder text</div>
+        </div>
+        <button class="btn-ghost" style="width:auto;padding:10px 16px" data-action="edit-templates">Edit</button>
+      </div>
     </div>
     <div class="stack" style="margin-top:14px">${cards}</div>
   </div>`;
@@ -857,10 +961,28 @@ document.addEventListener("click", e => {
     }
     case "add-booking":   openBookingDialog(); break;
     case "add-apartment": openApartmentDialog(); break;
+    case "edit-apartment": openApartmentDialog(el.dataset.id); break;
+    case "delete-apartment": {
+      const n = db.bookings.filter(b => b.apartmentId === el.dataset.id).length;
+      confirmDialog("confirm-delete-apt", el.dataset.id,
+        n ? `Delete this apartment and its ${n} booking${n === 1 ? "" : "s"}?` : "Delete this apartment?");
+      break;
+    }
     case "add-user":      openNewUserDialog(); break;
     case "edit-user":     openEditUserDialog(el.dataset.id); break;
+    case "edit-templates": openTemplatesDialog(); break;
     case "mark-arrived":  confirmDialog("confirm-arrived", el.dataset.id, "Are you sure they came?"); break;
     case "mark-departed": confirmDialog("confirm-departed", el.dataset.id, "Are you sure they left?"); break;
+    case "mark-clean":    confirmDialog("confirm-clean", el.dataset.id, "Are you sure the apartment is clean?"); break;
+    case "terminate-booking": confirmDialog("confirm-terminate", el.dataset.id, "Are you sure? This cancels the booking."); break;
+    case "wa-msg":        openWaDialog(el.dataset.id, el.dataset.kind); break;
+    case "wa-send": {
+      const ta = dlg.querySelector('[name="wa_text"]');
+      const ph = el.dataset.phone;
+      if (ta && ph) window.open(`https://wa.me/${ph}?text=${encodeURIComponent(ta.value)}`, "_blank", "noopener");
+      dlg.close("sent");
+      break;
+    }
     case "promote-user": {
       const acc = ACCOUNTS.find(x => x.username === el.dataset.id);
       if (acc) confirmDialog("confirm-promote", acc.username, `Are you sure you want to promote ${acc.name} to admin?`);
@@ -977,8 +1099,7 @@ dlg.addEventListener("close", () => {
       arrived: false, departed: false,
     });
   } else if (form.dataset.form === "apartment") {
-    db.apartments.push({
-      id: nextId(),
+    const patch = {
       name: String(fd.get("name")).trim(),
       address: String(fd.get("address")).trim(),
       town: String(fd.get("town") || "Novalja").trim(),
@@ -986,7 +1107,31 @@ dlg.addEventListener("close", () => {
       max_guests: Math.max(1, num("max_guests", 2)),
       deposit_per_person: Math.max(0, num("deposit_per_person", 15)),
       status: fd.get("status") || "ready",
-    });
+    };
+    const existing = form.dataset.id && aptById(form.dataset.id);
+    if (existing) Object.assign(existing, patch);
+    else db.apartments.push({ id: nextId(), ...patch });
+  } else if (form.dataset.form === "confirm-delete-apt") {
+    db.bookings = db.bookings.filter(b => b.apartmentId !== form.dataset.id);
+    db.apartments = db.apartments.filter(a => a.id !== form.dataset.id);
+    openApts.delete(form.dataset.id);
+  } else if (form.dataset.form === "confirm-clean") {
+    const apt = aptById(form.dataset.id);
+    if (apt && apt.status === "cleaning") apt.status = "ready";
+  } else if (form.dataset.form === "confirm-terminate") {
+    const b = db.bookings.find(x => x.id === form.dataset.id);
+    if (b) {
+      b.status = "terminated";
+      const apt = aptById(b.apartmentId);
+      // no one stayed → back to ready, not cleaning; leave alone if another live booking holds it
+      const otherActive = db.bookings.some(x =>
+        x.apartmentId === b.apartmentId && x.id !== b.id && x.arrived && !x.departed && x.status !== "terminated");
+      if (apt && apt.status === "occupied" && !otherActive) apt.status = "ready";
+    }
+  } else if (form.dataset.form === "templates") {
+    db.templates = {};
+    for (const k of Object.keys(DEFAULT_TEMPLATES))
+      db.templates[k] = String(fd.get(k) || "").trim() || DEFAULT_TEMPLATES[k];
   } else if (form.dataset.form === "confirm-arrived") {
     const b = db.bookings.find(x => x.id === form.dataset.id);
     if (b) { b.arrived = true; const apt = aptById(b.apartmentId); if (apt) apt.status = "occupied"; }
@@ -1039,7 +1184,8 @@ dlg.addEventListener("close", () => {
     const [zone, rowIndex] = form.dataset.id.split("|").map(Number);
     ensureScheduleWeek(scheduleWeekStart).zones[zone].splice(rowIndex, 1);
   }
-  const dbForms = ["booking", "apartment", "confirm-arrived", "confirm-departed",
+  const dbForms = ["booking", "apartment", "confirm-delete-apt", "confirm-clean", "confirm-terminate",
+    "templates", "confirm-arrived", "confirm-departed",
     "sched-assign-row", "sched-assign-night", "sched-hours", "confirm-remove-sched-row"];
   if (dbForms.includes(form.dataset.form)) saveDB(db);
   render();
@@ -1091,21 +1237,48 @@ function openBookingDialog() {
   `);
 }
 
-function openApartmentDialog() {
-  dialogShell("apartment", "New apartment", `
-    <label class="f">Name<input name="name" required></label>
-    <label class="f">Address<input name="address" placeholder="Street name & number" required></label>
+function openApartmentDialog(aptId) {
+  const a = aptId ? aptById(aptId) : null;
+  const zoneOpts = [1, 2, 3].map(z => `<option ${a && +a.zone === z ? "selected" : ""}>${z}</option>`).join("");
+  const statusOpts = ["ready", "occupied", "cleaning"]
+    .map(s => `<option value="${s}" ${a && a.status === s ? "selected" : ""}>${s}</option>`).join("");
+  dialogShell("apartment", a ? "Edit apartment" : "New apartment", `
+    <label class="f">Name<input name="name" value="${a ? esc(a.name) : ""}" required></label>
+    <label class="f">Address<input name="address" value="${a ? esc(a.address) : ""}" placeholder="Street name & number" required></label>
     <div class="row2">
-      <label class="f">Town / location<input name="town" value="Novalja"></label>
-      <label class="f">Zone<select name="zone"><option>1</option><option>2</option><option>3</option></select></label>
+      <label class="f">Town / location<input name="town" value="${a ? esc(a.town) : "Novalja"}"></label>
+      <label class="f">Zone<select name="zone">${zoneOpts}</select></label>
     </div>
     <div class="row2">
-      <label class="f">Max guests<input type="number" name="max_guests" min="1" value="4" inputmode="numeric"></label>
-      <label class="f">Deposit / person (€)<input type="number" name="deposit_per_person" min="0" value="15" inputmode="numeric"></label>
+      <label class="f">Max guests<input type="number" name="max_guests" min="1" value="${a ? a.max_guests : 4}" inputmode="numeric"></label>
+      <label class="f">Deposit / person (€)<input type="number" name="deposit_per_person" min="0" value="${a ? a.deposit_per_person : 15}" inputmode="numeric"></label>
     </div>
-    <label class="f">Status
-      <select name="status"><option value="ready">ready</option><option value="occupied">occupied</option><option value="cleaning">cleaning</option></select></label>
-  `);
+    <label class="f">Status<select name="status">${statusOpts}</select></label>
+  `, a ? { id: aptId } : {});
+}
+
+function openWaDialog(bookingId, kind) {
+  const b = db.bookings.find(x => x.id === bookingId);
+  if (!b) return;
+  const apt = aptById(b.apartmentId) || {};
+  const phone = digits(b.guest_phone);
+  const titles = { in: "Check-in message", out: "Check-out message", reminder: "Checkout reminder" };
+  dialogShell("wa", titles[kind] || "WhatsApp message", `
+    <label class="f">Message<textarea name="wa_text" rows="6">${esc(buildMessage(kind, b, apt))}</textarea></label>
+    ${phone ? "" : `<div class="dim" style="font-size:12px;color:var(--orange)">No phone number on this booking.</div>`}
+  `, {
+    menu: `
+      <button type="button" class="btn-ghost" data-action="dlg-cancel">Cancel</button>
+      <button type="button" class="btn btn-green" data-action="wa-send" data-phone="${phone}" ${phone ? "" : "disabled"}>Send via WhatsApp</button>`,
+  });
+}
+
+function openTemplatesDialog() {
+  const body = Object.keys(DEFAULT_TEMPLATES).map(k => `
+    <label class="f" style="margin-top:12px">${TEMPLATE_LABELS[k]}
+      <textarea name="${k}" rows="4">${esc(templateText(k))}</textarea></label>
+    <div class="dim" style="font-size:11px;margin-top:4px">Placeholders: ${TEMPLATE_TOKENS[k].map(esc).join(", ")}</div>`).join("");
+  dialogShell("templates", "Message templates", body);
 }
 
 function openNewUserDialog() {
@@ -1204,6 +1377,9 @@ function toggleTheme() {
   ok(touristTax(0, 5) === 0, "tax: 0 tax-paying guests = €0");
   ok(eur(touristTax(3, 4)) === "€19.20", "tax formats to €19.20");
   ok(recDeposit({ deposit_per_person: 15 }, { guest_count: 4 }) === 60, "deposit: €15 × 4 = €60");
+  ok(fillTemplate("Hi {guest}, checkout at {time}.", { guest: "Luka", time: "9:00" })
+     === "Hi Luka, checkout at 9:00.", "template: fills {guest} and {time}");
+  ok(fillTemplate("Keep {unknown}", {}) === "Keep {unknown}", "template: leaves unknown tokens intact");
 })();
 
 render();
