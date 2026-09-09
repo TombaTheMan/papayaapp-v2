@@ -69,7 +69,6 @@ a{color:var(--accent);text-decoration:none}
 .nav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:12px;
   color:var(--dim);font-size:11px;font-weight:600;transition:background .18s var(--ease),color .18s var(--ease)}
 .nav a.on{color:var(--accent);background:var(--accent-soft)}
-.nav a span{white-space:nowrap}
 
 /* --- layout --- */
 .screen{padding:16px 16px 8px}
@@ -338,7 +337,8 @@ const DEFAULT_CHECKOUT_TIME = "9:00";
 // realistic sample values for the live template previews in the admin editor
 const templateSample = () => ({
   guest: "Ana Perić", apartment: "Sea Breeze Studio",
-  worker: (session && session.name) || "You", town: "Novalja", time: "10:00",
+  worker: (session && session.name) || "You", town: "Novalja",
+  time: DEFAULT_CHECKOUT_TIME,   // previews the value real messages actually use (no per-booking override UI yet)
 });
 
 /* ========================================================================
@@ -646,7 +646,7 @@ function bottomNav() {
     ${item("checkinout", "Check in/out", I.cal)}
     ${item("apartments", "Apartments", I.grid)}
     ${item("schedule", "Schedule", I.table)}
-    ${item("allbookings", "All Bookings", I.list)}
+    ${item("allbookings", "Bookings", I.list)}
     ${isAdmin() ? item("users", "Users", I.user) : ""}
   </div></nav>`;
 }
@@ -719,17 +719,13 @@ function bookingCard(b, kind) {
     ? `<span class="pill s-terminated">Terminated</span>`
     : `<span class="pill s-${apt.status || "ready"}">${apt.status || "—"}</span>`;
 
-  // audit line + inline undo — visible while the change is still safely reversible
+  // audit line stays as a trail; the inline undo link only while still safely reversible
   const lastH = (b._history || [])[(b._history || []).length - 1];
   let audit = "", undo = "";
-  if (!terminated && b.arrived && !b.departed && lastH && lastH.a === "arrived") {
-    audit = `Arrived · ${actionStamp(lastH)}`;
-    undo = `<button class="undo-link" data-action="undo-action" data-target="booking" data-id="${b.id}">Undo arrival</button>`;
-  } else if (!terminated && b.departed && lastH && lastH.a === "departed") {
-    audit = `Departed · ${actionStamp(lastH)}`;
-    // reversible only until the apartment has been cleaned again / a new guest has arrived
-    if (apt.status === "cleaning")
-      undo = `<button class="undo-link" data-action="undo-action" data-target="booking" data-id="${b.id}">Undo departure</button>`;
+  if (!terminated && lastH && (lastH.a === "arrived" || lastH.a === "departed")) {
+    audit = `${lastH.a === "arrived" ? "Arrived" : "Departed"} · ${actionStamp(lastH)}`;
+    if (bookingUndoable(b))
+      undo = `<button class="undo-link" data-action="undo-action" data-target="booking" data-id="${b.id}">Undo ${lastH.a === "arrived" ? "arrival" : "departure"}</button>`;
   }
   const statusCol = `<div class="stat-col">${statusPill}` +
     `${audit ? `<div class="dim stat-note">${audit}</div>` : ""}${undo}</div>`;
@@ -869,7 +865,7 @@ function apartmentCard(a) {
 
   // "Undo clean" stays available while it's still a safe status flip (apt hasn't moved on)
   const lastAH = (a._history || [])[(a._history || []).length - 1];
-  const cleanUndo = (a.status === "ready" && lastAH && lastAH.a === "cleaned")
+  const cleanUndo = aptCleanUndoable(a)
     ? `<div class="between" style="margin-top:8px">
          <span class="dim stat-note">Cleaned · ${actionStamp(lastAH)}</span>
          <button class="undo-link" data-action="undo-action" data-target="apt" data-id="${a.id}">Undo clean</button>
@@ -1098,23 +1094,37 @@ function persistBooking(id, patch) {
 
 // append an audit/undo entry to a booking or apartment (see revertBookingAction / revertAptClean)
 function recordAction(target, action, prevAptStatus) {
-  (target._history = target._history || []).push({
-    a: action, at: Date.now(), by: (session && session.name) || "", prev: prevAptStatus,
-  });
+  const h = (target._history = target._history || []);
+  h.push({ a: action, at: Date.now(), by: (session && session.name) || "", prev: prevAptStatus });
+  if (h.length > 8) h.splice(0, h.length - 8);   // only the last entry is ever read; keep a short tail
+}
+
+// is the most recent logged action still safely reversible? (shared by the inline links and the toast)
+function bookingUndoable(b) {
+  const last = (b._history || [])[(b._history || []).length - 1];
+  if (!last || b.status === "terminated") return false;
+  if (last.a === "arrived")  return !!b.arrived && !b.departed;
+  if (last.a === "departed") return !!b.departed && aptById(b.apartmentId)?.status === "cleaning";
+  return false;
+}
+function aptCleanUndoable(a) {
+  const last = (a._history || [])[(a._history || []).length - 1];
+  return !!last && last.a === "cleaned" && a.status === "ready";
 }
 
 /* ---- undo toast (lives in #toast, outside #app, so render() doesn't wipe it) ---- */
 let _toastUndo = null, _toastTimer = null;
 
-// re-looks-up by id at click time so a re-render in between can't leave a stale ref
+// re-looks-up by id at click time and re-checks reversibility, so a follow-up action
+// inside the 7s window can't make the toast's Undo restore a now-stale status
 function toastWithUndo(msg, targetKind, id) {
   showToast(msg, () => {
     if (targetKind === "booking") {
       const b = db.bookings.find(x => x.id === id);
-      if (b) revertBookingAction(b, aptById(b.apartmentId));
+      if (b && bookingUndoable(b)) revertBookingAction(b, aptById(b.apartmentId));
     } else {
       const apt = aptById(id);
-      if (apt) revertAptClean(apt);
+      if (apt && aptCleanUndoable(apt)) revertAptClean(apt);
     }
     saveDB(db); render();
   });
@@ -1184,10 +1194,10 @@ document.addEventListener("click", e => {
     case "undo-action": {
       if (el.dataset.target === "booking") {
         const b = db.bookings.find(x => x.id === el.dataset.id);
-        if (b) revertBookingAction(b, aptById(b.apartmentId));
+        if (b && bookingUndoable(b)) revertBookingAction(b, aptById(b.apartmentId));
       } else {
         const apt = aptById(el.dataset.id);
-        if (apt) revertAptClean(apt);
+        if (apt && aptCleanUndoable(apt)) revertAptClean(apt);
       }
       saveDB(db); hideToast(); render();
       break;
@@ -1457,6 +1467,9 @@ function dialogShell(kind, title, body, { id, menu } = {}) {
     </menu>
   </form>`;
   dlg.showModal();
+  // some browsers don't clear returnValue on showModal(); without this, dismissing a
+  // dialog with Escape after any previous Save would still read "ok" and re-run the action.
+  dlg.returnValue = "";
 }
 
 function confirmDialog(kind, id, message) {
@@ -1520,7 +1533,9 @@ function openConfirmAction(kind, id) {
       body = bookingSummaryRows(b, true);
     } else { // confirm-terminate
       title = "Terminate this booking?"; confirmLabel = "Terminate booking"; danger = true;
-      body = bookingSummaryRows(b) +
+      const arrivedWarn = b.arrived && !b.departed
+        ? `<p style="font-size:12px;margin-top:10px;color:var(--red);font-weight:600">This guest has already checked in — terminating frees the apartment.</p>` : "";
+      body = bookingSummaryRows(b) + arrivedWarn +
         `<p class="dim" style="font-size:12px;margin-top:10px">The booking is cancelled and the apartment stays available. This can't be undone.</p>`;
     }
   }
@@ -1747,6 +1762,13 @@ function toggleTheme() {
     ok(revertAptClean(apt2) && apt2.status === "cleaning" && apt2._history.length === 0,
        "undo clean: apartment back to cleaning");
     ok(revertBookingAction({ _history: [] }, {}) === false, "undo: no-op when no history");
+    // recordAction keeps only a short tail
+    const cap = { _history: [] };
+    for (let i = 0; i < 20; i++) recordAction(cap, "cleaned", "cleaning");
+    ok(cap._history.length === 8, "recordAction: _history capped at 8 entries");
+    // aptCleanUndoable: only while apt is still 'ready' with a trailing 'cleaned'
+    ok(aptCleanUndoable({ status: "ready", _history: [{ a: "cleaned" }] }) === true, "aptCleanUndoable: ready + cleaned");
+    ok(aptCleanUndoable({ status: "occupied", _history: [{ a: "cleaned" }] }) === false, "aptCleanUndoable: not once moved on");
   }
 })();
 
