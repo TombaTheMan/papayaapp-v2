@@ -69,6 +69,7 @@ a{color:var(--accent);text-decoration:none}
 .nav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:12px;
   color:var(--dim);font-size:11px;font-weight:600;transition:background .18s var(--ease),color .18s var(--ease)}
 .nav a.on{color:var(--accent);background:var(--accent-soft)}
+.nav a span{white-space:nowrap}
 
 /* --- layout --- */
 .screen{padding:16px 16px 8px}
@@ -95,6 +96,9 @@ a{color:var(--accent);text-decoration:none}
 .s-ready{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
 .s-cleaning{background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)}
 .s-terminated{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
+.s-current{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.s-upcoming{background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)}
+.s-past{background:color-mix(in srgb,var(--dim) 15%,transparent);color:var(--dim)}
 .dot{width:9px;height:9px;border-radius:50%;flex:none}
 .d-occupied{background:var(--green)} .d-ready{background:var(--orange)} .d-cleaning{background:var(--blue)} .d-terminated{background:var(--red)}
 
@@ -147,9 +151,34 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 
 .empty{text-align:center;color:var(--dim);padding:26px 10px;font-size:14px}
 
+/* undo affordances + audit line (safer check-in/out actions) */
+.stat-col{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none;text-align:right;max-width:52%}
+.stat-note{font-size:11px;line-height:1.35}
+.undo-link{border:0;background:none;color:var(--accent);font-weight:600;font-size:11px;line-height:1.4;padding:0}
+.undo-link:active{opacity:.55}
+@media (hover:hover){.undo-link:hover{text-decoration:underline}}
+
+.count-badge{font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);
+  padding:3px 9px;border-radius:999px;white-space:nowrap}
+
+/* undo toast */
+#toast{position:fixed;left:0;right:0;bottom:calc(74px + env(safe-area-inset-bottom));z-index:40;
+  display:flex;justify-content:center;padding:0 14px;pointer-events:none}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:12px;width:100%;max-width:452px;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);box-shadow:var(--shadow);
+  padding:12px 14px;font-size:14px;font-weight:600}
+.toast > span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toast-undo{flex:none;border:0;background:var(--accent-soft);color:var(--accent);font-weight:700;
+  font-size:13px;padding:7px 14px;border-radius:9px;transition:transform .09s var(--ease)}
+.toast-undo:active{transform:scale(.94)}
+@keyframes fadeout{to{opacity:0;transform:translateY(6px)}}
+.toast.out{animation:fadeout .16s var(--ease) forwards}
+@media (min-width:1024px){#toast{bottom:24px}}
+
 /* dialog */
 dialog{border:0;border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
-  width:100%;max-width:480px;margin:auto auto 0;background:var(--card);color:var(--text);box-shadow:var(--shadow)}
+  width:100%;max-width:480px;margin:auto auto 0;background:var(--card);color:var(--text);box-shadow:var(--shadow);
+  max-height:calc(100dvh - 20px);overflow-y:auto}
 dialog::backdrop{background:rgba(10,8,24,.45);backdrop-filter:blur(2px)}
 @media (min-width:520px){dialog{border-radius:22px;margin:auto;max-width:520px}}
 dialog[open]{animation:dlgpop .2s var(--ease)}
@@ -248,6 +277,7 @@ dialog menu button{flex:1}
 </head>
 <body>
 <div id="app"></div>
+<div id="toast" hidden></div>
 <dialog id="dlg"></dialog>
 
 <script>
@@ -280,25 +310,36 @@ function seedAccounts() {
 
 // WhatsApp message templates — token strings, not functions, so admins can edit them
 // (Users → Message templates). db.templates overrides these; fall back here if unset.
+// Three kinds only: checkin, checkout (also carries the checkout-day reminder), review.
+// Every placeholder in TEMPLATE_PLACEHOLDERS works in every template — buildMessage()
+// fills all five unconditionally. Old saved db.templates.checkoutReminder is ignored.
 const DEFAULT_TEMPLATES = {
   checkin:
     "Hi, my name is {worker} and I am your host for staying in {town}. " +
     "I just wanted to know when are you arriving? Also if you have any questions you can just ask me.",
   checkout:
-    "Hi {guest}, hope you're enjoying your stay at {apartment}! " +
-    "What time are you planning to check out today? Let me know if you need anything.",
-  checkoutReminder:
-    "Hi {guest}, I hope you had a nice stay, tomorrow is your checkout, just wanted to remind you " +
-    "that it is at {time}, please be ready then, I will come to check the apartment and pick up the keys. " +
-    "Please take out the trash before I come. Thanks.",
+    "Hi {guest}, I hope you're enjoying your stay at {apartment}! Just a reminder that checkout is today at {time} — " +
+    "please have everything packed and the keys ready by then. Could you also take the rubbish out before I come by " +
+    "to check the apartment and collect the keys? Let me know what time suits you or if you need anything.",
+  review:
+    "Hi {guest}, thank you so much for staying at {apartment} — it was a pleasure hosting you! " +
+    "If you have a minute, a quick review of the apartment would really help us. Safe travels, and you're welcome back any time. — {worker}",
 };
-const TEMPLATE_LABELS = { checkin: "Check-in", checkout: "Check-out", checkoutReminder: "Checkout reminder" };
-const TEMPLATE_TOKENS = {
-  checkin: ["{worker}", "{town}"],
-  checkout: ["{guest}", "{apartment}"],
-  checkoutReminder: ["{guest}", "{time}"],
-};
+const TEMPLATE_LABELS = { checkin: "Check-in", checkout: "Check-out", review: "Review request" };
+// One shared legend — every token is valid in all three templates.
+const TEMPLATE_PLACEHOLDERS = [
+  ["{guest}", "the guest's name, from the booking"],
+  ["{apartment}", "the apartment's name"],
+  ["{worker}", "the worker sending the message — filled in automatically at send time, not per booking"],
+  ["{town}", "the apartment's town / location"],
+  ["{time}", "the checkout time (defaults to 9:00 unless the booking sets another)"],
+];
 const DEFAULT_CHECKOUT_TIME = "9:00";
+// realistic sample values for the live template previews in the admin editor
+const templateSample = () => ({
+  guest: "Ana Perić", apartment: "Sea Breeze Studio",
+  worker: (session && session.name) || "You", town: "Novalja", time: "10:00",
+});
 
 /* ========================================================================
    HELPERS
@@ -332,7 +373,7 @@ const digits = s => String(s || "").replace(/\D/g, "");
 const templateText = key => (db.templates && db.templates[key]) || DEFAULT_TEMPLATES[key];
 const fillTemplate = (str, vars) => String(str).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
 function buildMessage(kind, b, apt) {
-  const key = kind === "in" ? "checkin" : kind === "reminder" ? "checkoutReminder" : "checkout";
+  const key = kind === "in" ? "checkin" : kind === "review" ? "review" : "checkout";
   return fillTemplate(templateText(key), {
     worker: (session && session.name) || "",
     town: apt.town || "Novalja",
@@ -475,7 +516,8 @@ let selectedDate = todayStr();
 // restore a worker's own zone as the default on page load too, not just at login time
 let activeZone = (session && session.role === "worker" && workerZone(session.username)) || 1;
 let scheduleWeekStart = mondayOf(todayStr());
-const openApts = new Set();        // expanded apartment ids
+const openApts = new Set();        // expanded apartment ids (Apartments tab)
+const openHistory = new Set();     // expanded apartment ids (All Bookings tab — separate state)
 
 const isAdmin = () => session && session.role === "admin";
 const aptById = id => db.apartments.find(a => a.id === id);
@@ -504,6 +546,38 @@ function currentBooking(aptId) {
       || null;
 }
 
+// read-only lifecycle tag for the All Bookings history view — derived, never stored
+function bookingPhase(b) {
+  if (b.status === "terminated") return "terminated";
+  const t = todayStr();
+  if (b.departed || b.departure_date < t) return "past";
+  if (b.arrival_date > t) return "upcoming";
+  return "current";
+}
+
+// Undo helpers for arrived / departed / clean. Pure: caller passes the linked apartment.
+// Each action pushes a {a, at, by, prev} entry onto the target's _history; revert pops it
+// and restores prev (the apartment status captured just before the action).
+function revertBookingAction(b, apt) {
+  const h = b._history || [];
+  const last = h[h.length - 1];
+  if (!last || (last.a !== "arrived" && last.a !== "departed")) return false;
+  if (last.a === "arrived") b.arrived = false; else b.departed = false;
+  if (last.prev != null && apt) apt.status = last.prev;
+  h.pop();
+  return true;
+}
+function revertAptClean(apt) {
+  const h = apt._history || [];
+  const last = h[h.length - 1];
+  if (!last || last.a !== "cleaned") return false;
+  apt.status = last.prev || "cleaning";
+  h.pop();
+  return true;
+}
+const actionStamp = h =>
+  `${esc(h.by || "someone")} · ${new Date(h.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+
 /* ========================================================================
    ICONS  (line icons, consistent 1.7 stroke, currentColor)
    ===================================================================== */
@@ -527,6 +601,8 @@ const I = {
   bell:  `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>`,
   edit:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
   trash: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M9 7V4h6v3"/></svg>`,
+  list:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>`,
+  star:  `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.85-4.25 4.15 1 5.85L12 17.1l-5.25 2.75 1-5.85L3.5 9.65l5.9-.85z"/></svg>`,
 };
 
 /* ========================================================================
@@ -540,6 +616,7 @@ function render() {
   if (!session) { renderLogin(); return; }
   const screen = route === "apartments" ? screenApartments()
     : route === "schedule" ? screenSchedule()
+    : route === "allbookings" ? screenAllBookings()
     : route === "users" ? screenUsers()
     : screenCheckInOut();
   app.innerHTML = topbar() + `<main class="fade">${screen}</main>` + bottomNav();
@@ -569,6 +646,7 @@ function bottomNav() {
     ${item("checkinout", "Check in/out", I.cal)}
     ${item("apartments", "Apartments", I.grid)}
     ${item("schedule", "Schedule", I.table)}
+    ${item("allbookings", "All Bookings", I.list)}
     ${isAdmin() ? item("users", "Users", I.user) : ""}
   </div></nav>`;
 }
@@ -641,6 +719,21 @@ function bookingCard(b, kind) {
     ? `<span class="pill s-terminated">Terminated</span>`
     : `<span class="pill s-${apt.status || "ready"}">${apt.status || "—"}</span>`;
 
+  // audit line + inline undo — visible while the change is still safely reversible
+  const lastH = (b._history || [])[(b._history || []).length - 1];
+  let audit = "", undo = "";
+  if (!terminated && b.arrived && !b.departed && lastH && lastH.a === "arrived") {
+    audit = `Arrived · ${actionStamp(lastH)}`;
+    undo = `<button class="undo-link" data-action="undo-action" data-target="booking" data-id="${b.id}">Undo arrival</button>`;
+  } else if (!terminated && b.departed && lastH && lastH.a === "departed") {
+    audit = `Departed · ${actionStamp(lastH)}`;
+    // reversible only until the apartment has been cleaned again / a new guest has arrived
+    if (apt.status === "cleaning")
+      undo = `<button class="undo-link" data-action="undo-action" data-target="booking" data-id="${b.id}">Undo departure</button>`;
+  }
+  const statusCol = `<div class="stat-col">${statusPill}` +
+    `${audit ? `<div class="dim stat-note">${audit}</div>` : ""}${undo}</div>`;
+
   const waBtn = (k, icon, label) =>
     `<button class="ico" data-action="wa-msg" data-id="${b.id}" data-kind="${k}" aria-label="${label}"${phone ? "" : ' aria-disabled="true"'}>${icon}</button>`;
 
@@ -662,7 +755,7 @@ function bookingCard(b, kind) {
         <div style="font-weight:700;letter-spacing:-.01em">${esc(apt.name || "—")}</div>
         <div class="dim" style="font-size:13px">${esc(b.guest_name)} · ${src}</div>
       </div>
-      ${statusPill}
+      ${statusCol}
     </div>
 
     <div class="row2" style="margin-top:12px">
@@ -705,8 +798,9 @@ function bookingCard(b, kind) {
 
     <div class="acts" style="margin-top:12px">
       <a class="ico" href="${mapsUrl}" target="_blank" rel="noopener" aria-label="Open in Google Maps">${I.pin}</a>
-      ${waBtn(kind === "in" ? "in" : "out", I.chat, "Message guest on WhatsApp")}
-      ${kind === "out" ? waBtn("reminder", I.bell, "Send checkout reminder message") : ""}
+      ${waBtn("in", I.chat, "Send check-in message")}
+      ${waBtn("out", I.bell, "Send check-out message")}
+      ${waBtn("review", I.star, "Send review request")}
     </div>
 
     ${actionBtns}
@@ -715,10 +809,13 @@ function bookingCard(b, kind) {
 
 /* ---- Apartments ---- */
 
-function screenApartments() {
-  const tabs = [1, 2, 3].map(z =>
-    `<button data-action="zone" data-zone="${z}" class="${activeZone === z ? "on" : ""}">Zone ${z}</button>`).join("");
+// plain zone tabs, shared by Apartments + All Bookings (Check in/out has its own richer variant)
+function plainZoneTabs() {
+  return `<div class="seg" style="margin-top:14px">${[1, 2, 3].map(z =>
+    `<button data-action="zone" data-zone="${z}" class="${activeZone === z ? "on" : ""}">Zone ${z}</button>`).join("")}</div>`;
+}
 
+function screenApartments() {
   const apts = db.apartments.filter(a => a.zone === activeZone);
   const cards = apts.length
     ? apts.map(apartmentCard).join("")
@@ -729,7 +826,7 @@ function screenApartments() {
       <h2>Apartments</h2>
       ${isAdmin() ? `<button class="iconbtn" data-action="add-apartment" aria-label="Add apartment">${I.plus}</button>` : ""}
     </div>
-    <div class="seg" style="margin-top:14px">${tabs}</div>
+    ${plainZoneTabs()}
     <div class="stack" style="margin-top:14px">${cards}</div>
   </div>`;
 }
@@ -770,6 +867,15 @@ function apartmentCard(a) {
     ? `<button class="btn btn-green" style="margin-top:10px" data-action="mark-clean" data-id="${a.id}">Apartment is clean</button>`
     : "";
 
+  // "Undo clean" stays available while it's still a safe status flip (apt hasn't moved on)
+  const lastAH = (a._history || [])[(a._history || []).length - 1];
+  const cleanUndo = (a.status === "ready" && lastAH && lastAH.a === "cleaned")
+    ? `<div class="between" style="margin-top:8px">
+         <span class="dim stat-note">Cleaned · ${actionStamp(lastAH)}</span>
+         <button class="undo-link" data-action="undo-action" data-target="apt" data-id="${a.id}">Undo clean</button>
+       </div>`
+    : "";
+
   return `<div class="card apt ${open ? "open" : ""}" data-action="toggle-apt" data-id="${a.id}">
     <div class="between">
       <div class="row">
@@ -781,8 +887,73 @@ function apartmentCard(a) {
       </div>
       <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end">${adminCtl}${statusControl}${I.chev}</div>
     </div>
+    ${cleanUndo}
     ${cleanBtn}
     <div class="exp"><div><div class="inner">${detail}</div></div></div>
+  </div>`;
+}
+
+/* ---- All Bookings (read-only history, everyone) ---- */
+
+function screenAllBookings() {
+  const apts = db.apartments.filter(a => a.zone === activeZone);
+  const cards = apts.length
+    ? apts.map(allBookingsCard).join("")
+    : `<div class="empty">No apartments in Zone ${activeZone}.</div>`;
+
+  return `<div class="screen">
+    <div class="between"><h2>All Bookings</h2></div>
+    ${plainZoneTabs()}
+    <div class="stack" style="margin-top:14px">${cards}</div>
+  </div>`;
+}
+
+function allBookingsCard(a) {
+  const open = openHistory.has(a.id);
+  const list = db.bookings
+    .filter(b => b.apartmentId === a.id)
+    .sort((x, y) => (x.arrival_date < y.arrival_date ? 1 : x.arrival_date > y.arrival_date ? -1 : 0));
+  const inner = list.length
+    ? list.map(historyRow).join("")
+    : `<div class="empty" style="padding:14px 0">No bookings for this apartment yet.</div>`;
+
+  return `<div class="card apt ${open ? "open" : ""}" data-action="toggle-history" data-id="${a.id}">
+    <div class="between">
+      <div class="row">
+        <span class="dot d-${a.status}"></span>
+        <div>
+          <div style="font-weight:700;letter-spacing:-.01em">${esc(a.name)}</div>
+          <div class="dim" style="font-size:12px">${esc(a.address)}</div>
+        </div>
+      </div>
+      <div class="row" style="gap:8px">
+        <span class="count-badge">${list.length} booking${list.length === 1 ? "" : "s"}</span>${I.chev}
+      </div>
+    </div>
+    <div class="exp"><div><div class="inner">${inner}</div></div></div>
+  </div>`;
+}
+
+function historyRow(b) {
+  const apt = aptById(b.apartmentId) || {};
+  const nights = nightsBetween(b.arrival_date, b.departure_date);
+  const phase = bookingPhase(b);
+  const label = { current: "Current", upcoming: "Upcoming", past: "Past", terminated: "Terminated" }[phase];
+  const src = b.booking_source === "Agency" && b.agency_name ? `Agency · ${esc(b.agency_name)}` : esc(b.booking_source);
+  const rec = recDeposit(apt, b);
+  return `<div class="card muted-card">
+    <div class="between">
+      <div style="font-weight:700">${esc(b.guest_name)}</div>
+      <span class="pill s-${phase}">${label}</span>
+    </div>
+    <div class="kv"><span>Stay</span><span>${prettyDate(b.arrival_date)} ${I.arrow} ${prettyDate(b.departure_date)} · ${nights}n</span></div>
+    <div class="kv"><span>Phone</span><span>${esc(b.guest_phone || "—")}</span></div>
+    <div class="kv"><span>Source</span><span>${src}</span></div>
+    <div class="kv"><span>Guests · tax-paying</span><span>${b.guest_count} · ${b.tax_paying_guest_count}</span></div>
+    <div class="kv"><span>Tourist tax</span><span>${eur(touristTax(b.tax_paying_guest_count, nights))}</span></div>
+    <div class="kv"><span>Deposit</span><span>${eur0(b.actual_deposit_taken)} taken · ${eur0(rec)} rec</span></div>
+    ${b.notes ? `<div style="margin-top:8px"><div class="metric-label">Notes</div>
+      <div class="dim" style="font-size:13px;margin-top:2px">${esc(b.notes)}</div></div>` : ""}
   </div>`;
 }
 
@@ -869,7 +1040,7 @@ function screenUsers() {
       <div class="between">
         <div>
           <div style="font-weight:700;letter-spacing:-.01em">Message templates</div>
-          <div class="dim" style="font-size:12px">WhatsApp check-in, check-out &amp; reminder text</div>
+          <div class="dim" style="font-size:12px">WhatsApp check-in, check-out &amp; review request text</div>
         </div>
         <button class="btn-ghost" style="width:auto;padding:10px 16px" data-action="edit-templates">Edit</button>
       </div>
@@ -925,6 +1096,51 @@ function persistBooking(id, patch) {
   saveDB(db);
 }
 
+// append an audit/undo entry to a booking or apartment (see revertBookingAction / revertAptClean)
+function recordAction(target, action, prevAptStatus) {
+  (target._history = target._history || []).push({
+    a: action, at: Date.now(), by: (session && session.name) || "", prev: prevAptStatus,
+  });
+}
+
+/* ---- undo toast (lives in #toast, outside #app, so render() doesn't wipe it) ---- */
+let _toastUndo = null, _toastTimer = null;
+
+// re-looks-up by id at click time so a re-render in between can't leave a stale ref
+function toastWithUndo(msg, targetKind, id) {
+  showToast(msg, () => {
+    if (targetKind === "booking") {
+      const b = db.bookings.find(x => x.id === id);
+      if (b) revertBookingAction(b, aptById(b.apartmentId));
+    } else {
+      const apt = aptById(id);
+      if (apt) revertAptClean(apt);
+    }
+    saveDB(db); render();
+  });
+}
+function showToast(msg, undoFn) {
+  const host = $("#toast");
+  if (!host) return;
+  _toastUndo = undoFn || null;
+  host.innerHTML = `<div class="toast fade">
+    <span>${esc(msg)}</span>
+    ${undoFn ? `<button class="toast-undo" data-action="toast-undo">Undo</button>` : ""}
+  </div>`;
+  host.hidden = false;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(hideToast, 7000);
+}
+function hideToast() {
+  clearTimeout(_toastTimer);
+  _toastUndo = null;
+  const host = $("#toast");
+  if (!host || host.hidden) return;
+  const card = host.firstElementChild;
+  if (card) card.classList.add("out");
+  setTimeout(() => { host.hidden = true; host.innerHTML = ""; }, 170);
+}
+
 // keep the live session (topbar name, isAdmin() checks) in sync when an admin edits their own account
 function syncSelfSession(acc) {
   if (!session || acc.username !== session.username) return;
@@ -959,6 +1175,27 @@ document.addEventListener("click", e => {
       el.classList.toggle("open");
       break;
     }
+    case "toggle-history": {
+      const id = el.dataset.id;
+      openHistory.has(id) ? openHistory.delete(id) : openHistory.add(id);
+      el.classList.toggle("open");
+      break;
+    }
+    case "undo-action": {
+      if (el.dataset.target === "booking") {
+        const b = db.bookings.find(x => x.id === el.dataset.id);
+        if (b) revertBookingAction(b, aptById(b.apartmentId));
+      } else {
+        const apt = aptById(el.dataset.id);
+        if (apt) revertAptClean(apt);
+      }
+      saveDB(db); hideToast(); render();
+      break;
+    }
+    case "toast-undo":
+      if (_toastUndo) _toastUndo();
+      hideToast();
+      break;
     case "add-booking":   openBookingDialog(); break;
     case "add-apartment": openApartmentDialog(); break;
     case "edit-apartment": openApartmentDialog(el.dataset.id); break;
@@ -971,10 +1208,10 @@ document.addEventListener("click", e => {
     case "add-user":      openNewUserDialog(); break;
     case "edit-user":     openEditUserDialog(el.dataset.id); break;
     case "edit-templates": openTemplatesDialog(); break;
-    case "mark-arrived":  confirmDialog("confirm-arrived", el.dataset.id, "Are you sure they came?"); break;
-    case "mark-departed": confirmDialog("confirm-departed", el.dataset.id, "Are you sure they left?"); break;
-    case "mark-clean":    confirmDialog("confirm-clean", el.dataset.id, "Are you sure the apartment is clean?"); break;
-    case "terminate-booking": confirmDialog("confirm-terminate", el.dataset.id, "Are you sure? This cancels the booking."); break;
+    case "mark-arrived":  openConfirmAction("confirm-arrived", el.dataset.id); break;
+    case "mark-departed": openConfirmAction("confirm-departed", el.dataset.id); break;
+    case "mark-clean":    openConfirmAction("confirm-clean", el.dataset.id); break;
+    case "terminate-booking": openConfirmAction("confirm-terminate", el.dataset.id); break;
     case "wa-msg":        openWaDialog(el.dataset.id, el.dataset.kind); break;
     case "wa-send": {
       const ta = dlg.querySelector('[name="wa_text"]');
@@ -1034,6 +1271,11 @@ document.addEventListener("input", e => {
   if (el.name === "booking_source") {
     const wrap = dlg.querySelector("[data-agency]");
     if (wrap) wrap.hidden = el.value !== "Agency";
+  }
+  // live template preview in the admin Message templates editor
+  if (el.dataset.tpl) {
+    const pv = dlg.querySelector(`[data-tpl-preview="${el.dataset.tpl}"]`);
+    if (pv) pv.textContent = fillTemplate(el.value, templateSample());
   }
 });
 
@@ -1117,7 +1359,11 @@ dlg.addEventListener("close", () => {
     openApts.delete(form.dataset.id);
   } else if (form.dataset.form === "confirm-clean") {
     const apt = aptById(form.dataset.id);
-    if (apt && apt.status === "cleaning") apt.status = "ready";
+    if (apt && apt.status === "cleaning") {
+      recordAction(apt, "cleaned", apt.status);
+      apt.status = "ready";
+      toastWithUndo(`${apt.name} marked clean`, "apt", apt.id);
+    }
   } else if (form.dataset.form === "confirm-terminate") {
     const b = db.bookings.find(x => x.id === form.dataset.id);
     if (b) {
@@ -1134,15 +1380,23 @@ dlg.addEventListener("close", () => {
       db.templates[k] = String(fd.get(k) || "").trim() || DEFAULT_TEMPLATES[k];
   } else if (form.dataset.form === "confirm-arrived") {
     const b = db.bookings.find(x => x.id === form.dataset.id);
-    if (b) { b.arrived = true; const apt = aptById(b.apartmentId); if (apt) apt.status = "occupied"; }
+    if (b) {
+      const apt = aptById(b.apartmentId);
+      recordAction(b, "arrived", apt ? apt.status : null);
+      b.arrived = true;
+      if (apt) apt.status = "occupied";
+      toastWithUndo(`Marked ${b.guest_name} as arrived`, "booking", b.id);
+    }
   } else if (form.dataset.form === "confirm-departed") {
     const b = db.bookings.find(x => x.id === form.dataset.id);
     if (b) {
-      b.departed = true;
       const apt = aptById(b.apartmentId);
       // don't downgrade status if a same-day turnover guest already checked in after this departure
       const stillOccupied = db.bookings.some(x => x.apartmentId === b.apartmentId && x.id !== b.id && x.arrived && !x.departed);
+      recordAction(b, "departed", apt ? apt.status : null);
+      b.departed = true;
       if (apt && !stillOccupied) apt.status = "cleaning";
+      toastWithUndo(`Marked ${b.guest_name} as departed`, "booking", b.id);
     }
   } else if (form.dataset.form === "new-user") {
     const username = String(fd.get("username") || "").trim().toLowerCase();
@@ -1214,6 +1468,71 @@ function confirmDialog(kind, id, message) {
   });
 }
 
+/* ---- richer confirmations for arrived / departed / clean / terminate ---- */
+
+function bookingSummaryRows(b, withNotes) {
+  const apt = aptById(b.apartmentId) || {};
+  const nights = nightsBetween(b.arrival_date, b.departure_date);
+  const src = b.booking_source === "Agency" && b.agency_name ? `Agency · ${esc(b.agency_name)}` : esc(b.booking_source);
+  const notes = withNotes && b.notes
+    ? `<div style="margin-top:8px"><div class="metric-label">Notes</div>
+         <div class="dim" style="font-size:13px;margin-top:2px">${esc(b.notes)}</div></div>` : "";
+  return `<div class="card muted-card" style="margin-top:4px">
+    <div class="kv"><span>Apartment</span><span>${esc(apt.name || "—")}</span></div>
+    <div class="kv"><span>Address</span><span>${esc(apt.address || "—")}</span></div>
+    <div class="kv"><span>Guest</span><span>${esc(b.guest_name)}</span></div>
+    <div class="kv"><span>Source</span><span>${src}</span></div>
+    <div class="kv"><span>Guests</span><span>${b.guest_count}</span></div>
+    <div class="kv"><span>Stay</span><span>${prettyDate(b.arrival_date)} ${I.arrow} ${prettyDate(b.departure_date)} · ${nights}n</span></div>
+    <div class="kv"><span>Tax-paying · tax</span><span>${b.tax_paying_guest_count} · ${eur(touristTax(b.tax_paying_guest_count, nights))}</span></div>
+    <div class="kv"><span>Deposit taken</span><span>${eur0(b.actual_deposit_taken)}</span></div>
+    ${notes}
+  </div>`;
+}
+
+// kind: confirm-arrived | confirm-departed | confirm-clean | confirm-terminate
+function openConfirmAction(kind, id) {
+  let title, body, confirmLabel, danger = false;
+
+  if (kind === "confirm-clean") {
+    const a = aptById(id);
+    if (!a) return;
+    const dep = db.bookings
+      .filter(x => x.apartmentId === id && x.departed)
+      .sort((x, y) => (x.departure_date < y.departure_date ? 1 : -1))[0];
+    title = "Mark apartment clean?";
+    confirmLabel = "Confirm clean";
+    body = `<div class="card muted-card" style="margin-top:4px">
+      <div class="kv"><span>Apartment</span><span>${esc(a.name)}</span></div>
+      <div class="kv"><span>Address</span><span>${esc(a.address)}</span></div>
+      <div class="kv"><span>Zone</span><span>${a.zone}</span></div>
+      ${dep ? `<div class="kv"><span>Last guest</span><span>${esc(dep.guest_name)}</span></div>
+               <div class="kv"><span>Departed</span><span>${prettyDate(dep.departure_date)}</span></div>` : ""}
+    </div>`;
+  } else {
+    const b = db.bookings.find(x => x.id === id);
+    if (!b) return;
+    if (kind === "confirm-arrived") {
+      title = "Confirm arrival?"; confirmLabel = "Confirm arrival";
+      body = bookingSummaryRows(b);
+    } else if (kind === "confirm-departed") {
+      title = "Confirm departure?"; confirmLabel = "Confirm departure";
+      body = bookingSummaryRows(b, true);
+    } else { // confirm-terminate
+      title = "Terminate this booking?"; confirmLabel = "Terminate booking"; danger = true;
+      body = bookingSummaryRows(b) +
+        `<p class="dim" style="font-size:12px;margin-top:10px">The booking is cancelled and the apartment stays available. This can't be undone.</p>`;
+    }
+  }
+
+  dialogShell(kind, title, body, {
+    id,
+    menu: `
+      <button type="button" class="btn-ghost" data-action="dlg-cancel">Cancel</button>
+      <button value="ok" class="btn ${danger ? "btn-red" : "btn-green"}">${esc(confirmLabel)}</button>`,
+  });
+}
+
 function openBookingDialog() {
   const opts = db.apartments.map(a => `<option value="${a.id}">${esc(a.name)} (Zone ${a.zone})</option>`).join("");
   const T = todayStr();
@@ -1262,7 +1581,7 @@ function openWaDialog(bookingId, kind) {
   if (!b) return;
   const apt = aptById(b.apartmentId) || {};
   const phone = digits(b.guest_phone);
-  const titles = { in: "Check-in message", out: "Check-out message", reminder: "Checkout reminder" };
+  const titles = { in: "Check-in message", out: "Check-out message", review: "Review request" };
   dialogShell("wa", titles[kind] || "WhatsApp message", `
     <label class="f">Message<textarea name="wa_text" rows="6">${esc(buildMessage(kind, b, apt))}</textarea></label>
     ${phone ? "" : `<div class="dim" style="font-size:12px;color:var(--orange)">No phone number on this booking.</div>`}
@@ -1274,11 +1593,27 @@ function openWaDialog(bookingId, kind) {
 }
 
 function openTemplatesDialog() {
-  const body = Object.keys(DEFAULT_TEMPLATES).map(k => `
-    <label class="f" style="margin-top:12px">${TEMPLATE_LABELS[k]}
-      <textarea name="${k}" rows="4">${esc(templateText(k))}</textarea></label>
-    <div class="dim" style="font-size:11px;margin-top:4px">Placeholders: ${TEMPLATE_TOKENS[k].map(esc).join(", ")}</div>`).join("");
-  dialogShell("templates", "Message templates", body);
+  const sample = templateSample();
+
+  const legend = `<div class="card muted-card" style="margin-top:4px">
+    <div class="metric-label" style="margin-bottom:8px">Placeholders</div>
+    ${TEMPLATE_PLACEHOLDERS.map(([tok, desc]) => `
+      <div style="display:flex;gap:10px;font-size:12px;padding:3px 0;line-height:1.4">
+        <code style="font-weight:700;color:var(--accent)">${esc(tok)}</code>
+        <span class="dim">${esc(desc)}</span>
+      </div>`).join("")}
+    <div class="dim" style="font-size:11px;margin-top:8px">All five work in every message below.</div>
+  </div>`;
+
+  const blocks = ["checkin", "checkout", "review"].map(k => `
+    <label class="f" style="margin-top:16px">${TEMPLATE_LABELS[k]}
+      <textarea name="${k}" data-tpl="${k}" rows="5">${esc(templateText(k))}</textarea></label>
+    <div class="card muted-card" style="margin-top:8px">
+      <div class="metric-label" style="margin-bottom:6px">Preview</div>
+      <div class="dim" style="font-size:13px;line-height:1.5;white-space:pre-wrap" data-tpl-preview="${k}">${esc(fillTemplate(templateText(k), sample))}</div>
+    </div>`).join("");
+
+  dialogShell("templates", "Message templates", legend + blocks);
 }
 
 function openNewUserDialog() {
@@ -1380,6 +1715,39 @@ function toggleTheme() {
   ok(fillTemplate("Hi {guest}, checkout at {time}.", { guest: "Luka", time: "9:00" })
      === "Hi Luka, checkout at 9:00.", "template: fills {guest} and {time}");
   ok(fillTemplate("Keep {unknown}", {}) === "Keep {unknown}", "template: leaves unknown tokens intact");
+
+  // Feature 3 — three template kinds, no reminder anywhere, every token substitutable
+  ok(!("checkoutReminder" in DEFAULT_TEMPLATES) && Object.keys(DEFAULT_TEMPLATES).join() === "checkin,checkout,review"
+     && !("checkoutReminder" in TEMPLATE_LABELS), "templates: only checkin/checkout/review remain");
+  {
+    const m = buildMessage("review", { guest_name: "Ana Perić" }, { name: "Sea Breeze Studio", town: "Novalja" });
+    ok(m.includes("Ana Perić") && m.includes("Sea Breeze Studio") && !m.includes("{"),
+       "buildMessage('review'): review template, all tokens filled");
+    ok(DEFAULT_TEMPLATES.checkout.includes("{time}") && DEFAULT_TEMPLATES.checkout.toLowerCase().includes("rubbish"),
+       "default check-out template folds in the checkout-day reminder");
+  }
+
+  // Feature 2 — lifecycle phase derivation
+  ok(bookingPhase({ status: "terminated", arrival_date: "2020-01-01", departure_date: "2020-01-02" }) === "terminated",
+     "phase: terminated wins");
+  ok(bookingPhase({ arrival_date: addDays(todayStr(), 3), departure_date: addDays(todayStr(), 6) }) === "upcoming",
+     "phase: future booking = upcoming");
+  ok(bookingPhase({ departed: true, arrival_date: addDays(todayStr(), -5), departure_date: addDays(todayStr(), -1) }) === "past",
+     "phase: departed = past");
+  ok(bookingPhase({ arrived: true, departed: false, arrival_date: addDays(todayStr(), -1), departure_date: addDays(todayStr(), 2) }) === "current",
+     "phase: staying now = current");
+
+  // Feature 1 — undo helpers revert the last action and restore prior apartment status
+  {
+    const apt = { status: "occupied", _history: [] };
+    const bk = { arrived: true, departed: false, _history: [{ a: "arrived", at: 1, by: "X", prev: "ready" }] };
+    ok(revertBookingAction(bk, apt) && bk.arrived === false && apt.status === "ready" && bk._history.length === 0,
+       "undo arrival: flips arrived + restores apt status");
+    const apt2 = { status: "ready", _history: [{ a: "cleaned", at: 1, by: "X", prev: "cleaning" }] };
+    ok(revertAptClean(apt2) && apt2.status === "cleaning" && apt2._history.length === 0,
+       "undo clean: apartment back to cleaning");
+    ok(revertBookingAction({ _history: [] }, {}) === false, "undo: no-op when no history");
+  }
 })();
 
 render();
