@@ -199,12 +199,14 @@ dialog menu button{flex:1}
 const TAX_RATE = 1.60;            // € per tax-paying guest per night
 const TAX_FREE_AGE = 12;          // children this age and under don't pay (info only)
 
-const ACCOUNTS = [
-  { username: "maria", password: "maria123", name: "Maria", role: "worker" },
-  { username: "luka",  password: "luka123",  name: "Luka",  role: "worker" },
-  { username: "admin", password: "admin123", name: "Admin", role: "admin"  },
-];
-// ponytail: plaintext accounts in-file — fine for a no-backend prototype.
+function seedAccounts() {
+  return [
+    { username: "maria", password: "maria123", name: "Maria", role: "worker" },
+    { username: "luka",  password: "luka123",  name: "Luka",  role: "worker" },
+    { username: "admin", password: "admin123", name: "Admin", role: "admin"  },
+  ];
+}
+// ponytail: plaintext accounts in localStorage — fine for a no-backend prototype.
 //           add real auth (server + hashed passwords) before production.
 
 const MESSAGES = {
@@ -245,6 +247,7 @@ const digits = s => String(s || "").replace(/\D/g, "");
    ===================================================================== */
 
 const DB_KEY = "hostops_db";
+const ACCOUNTS_KEY = "hostops_accounts";
 const SESSION_KEY = "hostops_session";
 const THEME_KEY = "hostops_theme";
 
@@ -315,15 +318,31 @@ function saveDB(d) {
   try { localStorage.setItem(DB_KEY, JSON.stringify(d)); } catch (e) { /* private mode / full: keep in memory */ }
 }
 
+function loadAccounts() {
+  try {
+    const raw = localStorage.getItem(ACCOUNTS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* fall through to seed */ }
+  const fresh = seedAccounts();
+  saveAccounts(fresh);
+  return fresh;
+}
+function saveAccounts(list) {
+  try { localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list)); } catch (e) { /* private mode / full: keep in memory */ }
+}
+
 /* ========================================================================
    STATE
    ===================================================================== */
 
-if (location.search.includes("reset")) { try { localStorage.removeItem(DB_KEY); } catch (e) {} }
+if (location.search.includes("reset")) {
+  try { localStorage.removeItem(DB_KEY); localStorage.removeItem(ACCOUNTS_KEY); } catch (e) {}
+}
 
 let db = loadDB();
+let ACCOUNTS = loadAccounts();
 let session = (() => { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; } })();
-let route = "checkinout";          // "checkinout" | "apartments"
+let route = "checkinout";          // "checkinout" | "apartments" | "users"
 let selectedDate = todayStr();
 let activeZone = 1;
 const openApts = new Set();        // expanded apartment ids
@@ -348,6 +367,7 @@ function currentBooking(aptId) {
 const I = {
   cal:   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>`,
   grid:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>`,
+  user:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.9 3.1-6.5 7-6.5s7 2.6 7 6.5"/></svg>`,
   pin:   `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg>`,
   chat:  `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 20l1.1-5.4A8.5 8.5 0 1 1 21 11.5Z"/><path d="M8.5 9.5c0 3.6 2.9 6.5 6.5 6.5.6 0 1-.5 1-1.1 0-.3-.2-.6-.4-.8l-1.3-.9a1 1 0 0 0-1 0l-.6.4a4.6 4.6 0 0 1-2-2l.4-.6a1 1 0 0 0 0-1l-.9-1.3a1 1 0 0 0-.8-.4c-.6 0-1.1.4-1.1 1Z" fill="currentColor" stroke="none"/></svg>`,
   sun:   `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5 3.5 3.5M20.5 20.5 19 19M19 5l1.5-1.5M3.5 20.5 5 19"/></svg>`,
@@ -369,7 +389,10 @@ const dlg = $("#dlg");
 
 function render() {
   if (!session) { renderLogin(); return; }
-  app.innerHTML = topbar() + `<main class="fade">${route === "apartments" ? screenApartments() : screenCheckInOut()}</main>` + bottomNav();
+  const screen = route === "apartments" ? screenApartments()
+    : route === "users" ? screenUsers()
+    : screenCheckInOut();
+  app.innerHTML = topbar() + `<main class="fade">${screen}</main>` + bottomNav();
 }
 
 function themeIcon() {
@@ -395,6 +418,7 @@ function bottomNav() {
   return `<nav class="nav"><div class="nav-inner">
     ${item("checkinout", "Check in/out", I.cal)}
     ${item("apartments", "Apartments", I.grid)}
+    ${isAdmin() ? item("users", "Users", I.user) : ""}
   </div></nav>`;
 }
 
@@ -577,6 +601,39 @@ function apartmentCard(a) {
   </div>`;
 }
 
+/* ---- Users (admin-only) ---- */
+
+function screenUsers() {
+  if (!isAdmin()) return screenCheckInOut();
+  const cards = ACCOUNTS.map(userCard).join("");
+  return `<div class="screen">
+    <div class="between">
+      <h2>Users</h2>
+      <button class="iconbtn" data-action="add-user" aria-label="Add user">${I.plus}</button>
+    </div>
+    <div class="stack" style="margin-top:14px">${cards}</div>
+  </div>`;
+}
+
+function userCard(a) {
+  const roleAction = a.role === "admin"
+    ? `<button class="btn btn-red" style="margin-top:8px" data-action="demote-user" data-id="${esc(a.username)}">Demote to Worker</button>`
+    : `<button class="btn btn-green" style="margin-top:8px" data-action="promote-user" data-id="${esc(a.username)}">Promote to Admin</button>`;
+
+  return `<div class="card">
+    <div class="between">
+      <div>
+        <div style="font-weight:700;letter-spacing:-.01em">${esc(a.name)}</div>
+        <div class="dim" style="font-size:12px">@${esc(a.username)}</div>
+      </div>
+      <span class="count" style="text-transform:capitalize">${esc(a.role)}</span>
+    </div>
+    <div class="kv"><span>Password</span><span>${esc(a.password)}</span></div>
+    <button class="btn-ghost" style="width:100%;margin-top:12px" data-action="edit-user" data-id="${esc(a.username)}">Edit</button>
+    ${roleAction}
+  </div>`;
+}
+
 /* ---- Login ---- */
 
 function renderLogin() {
@@ -618,7 +675,7 @@ document.addEventListener("click", e => {
     case "theme":
       toggleTheme(); break;
     case "logout":
-      session = null; try { localStorage.removeItem(SESSION_KEY); } catch (e) {} render(); break;
+      session = null; route = "checkinout"; try { localStorage.removeItem(SESSION_KEY); } catch (e) {} render(); break;
     case "reldate":
       selectedDate = addDays(todayStr(), { yesterday: -1, today: 0, tomorrow: 1 }[el.dataset.rel]); render(); break;
     case "stepdate":
@@ -634,8 +691,20 @@ document.addEventListener("click", e => {
     }
     case "add-booking":   openBookingDialog(); break;
     case "add-apartment": openApartmentDialog(); break;
+    case "add-user":      openNewUserDialog(); break;
+    case "edit-user":     openEditUserDialog(el.dataset.id); break;
     case "mark-arrived":  confirmDialog("confirm-arrived", el.dataset.id, "Are you sure they came?"); break;
     case "mark-departed": confirmDialog("confirm-departed", el.dataset.id, "Are you sure they left?"); break;
+    case "promote-user": {
+      const acc = ACCOUNTS.find(x => x.username === el.dataset.id);
+      if (acc) confirmDialog("confirm-promote", acc.username, `Are you sure you want to promote ${acc.name} to admin?`);
+      break;
+    }
+    case "demote-user": {
+      const acc = ACCOUNTS.find(x => x.username === el.dataset.id);
+      if (acc) confirmDialog("confirm-demote", acc.username, `Are you sure you want to demote ${acc.name} to worker?`);
+      break;
+    }
     case "dlg-cancel":    dlg.close("cancel"); break;
   }
 });
@@ -730,6 +799,30 @@ dlg.addEventListener("close", () => {
       const stillOccupied = db.bookings.some(x => x.apartmentId === b.apartmentId && x.id !== b.id && x.arrived && !x.departed);
       if (apt && !stillOccupied) apt.status = "cleaning";
     }
+  } else if (form.dataset.form === "new-user") {
+    const username = String(fd.get("username") || "").trim().toLowerCase();
+    if (username && !ACCOUNTS.some(x => x.username === username)) {
+      ACCOUNTS.push({
+        username,
+        password: String(fd.get("password") || "").trim(),
+        name: String(fd.get("name") || "").trim(),
+        role: fd.get("role") === "admin" ? "admin" : "worker",
+      });
+      saveAccounts(ACCOUNTS);
+    }
+  } else if (form.dataset.form === "edit-user") {
+    const acc = ACCOUNTS.find(x => x.username === form.dataset.id);
+    if (acc) {
+      acc.name = String(fd.get("name") || "").trim() || acc.name;
+      acc.password = String(fd.get("password") || "").trim() || acc.password;
+      saveAccounts(ACCOUNTS);
+    }
+  } else if (form.dataset.form === "confirm-promote") {
+    const acc = ACCOUNTS.find(x => x.username === form.dataset.id);
+    if (acc) { acc.role = "admin"; saveAccounts(ACCOUNTS); }
+  } else if (form.dataset.form === "confirm-demote") {
+    const acc = ACCOUNTS.find(x => x.username === form.dataset.id);
+    if (acc) { acc.role = "worker"; saveAccounts(ACCOUNTS); }
   }
   saveDB(db);
   render();
@@ -796,6 +889,26 @@ function openApartmentDialog() {
     <label class="f">Status
       <select name="status"><option value="ready">ready</option><option value="occupied">occupied</option><option value="cleaning">cleaning</option></select></label>
   `);
+}
+
+function openNewUserDialog() {
+  dialogShell("new-user", "New account", `
+    <label class="f">Name<input name="name" required></label>
+    <label class="f">Username<input name="username" autocapitalize="none" required></label>
+    <label class="f">Password<input name="password" required></label>
+    <label class="f">Role
+      <select name="role"><option value="worker">Worker</option><option value="admin">Admin</option></select></label>
+  `);
+}
+
+function openEditUserDialog(username) {
+  const a = ACCOUNTS.find(x => x.username === username);
+  if (!a) return;
+  dialogShell("edit-user", `Edit ${esc(a.name)}`, `
+    <label class="f">Username<input value="${esc(a.username)}" disabled></label>
+    <label class="f">Name<input name="name" value="${esc(a.name)}" required></label>
+    <label class="f">Password<input name="password" value="${esc(a.password)}" required></label>
+  `, { id: a.username });
 }
 
 /* ---- theme ---- */

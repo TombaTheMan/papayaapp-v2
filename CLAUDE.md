@@ -17,9 +17,10 @@ Every change to this project is committed and pushed automatically:
 
 ## What this is
 
-**Host Ops** — a staff web app for managing check-ins/check-outs at short-term rental
-apartments in Novalja. Two roles: **worker** (on-site guest handling) and **admin**
-(creates bookings and apartments). Standalone from the existing booking-management app.
+**Papaya Travel** (formerly "Host Ops") — a staff web app for managing check-ins/check-outs
+at short-term rental apartments in Novalja. Two roles: **worker** (on-site guest handling)
+and **admin** (creates bookings/apartments, manages user accounts on the admin-only Users
+page). Standalone from the existing booking-management app.
 
 The entire application is one file: **`host-ops/index.html`** (~790 lines: inline
 `<style>` + inline `<script>`, no external assets). No framework, no build step, no
@@ -33,16 +34,20 @@ package manager, no dependency, and this directory is not a git repo.
 - **Tests:** no framework. `selfTest()` at the bottom of the script runs the money/date
   logic (`nightsBetween`, `touristTax`, `recDeposit`, `eur`) on load and logs `✓`/`✗` to
   the browser console. Extend that function when touching those helpers.
-- **Reset state:** append `?reset` to the URL — clears the `hostops_db` key and re-seeds.
-- **Demo logins:** `maria` / `maria123` (worker), `admin` / `admin123` (admin).
+- **Reset state:** append `?reset` to the URL — clears the `hostops_db` and `hostops_accounts`
+  keys and re-seeds both.
+- **Demo logins:** `maria` / `maria123` (worker), `admin` / `admin123` (admin). Admins can
+  add/edit accounts and promote/demote roles from the Users page; changes persist to
+  `localStorage["hostops_accounts"]` and flow straight into the existing login lookup.
 
 ## Architecture
 
-**State** lives in four module-scoped variables in the script: `db`
-(`{apartments, bookings}`, persisted to `localStorage["hostops_db"]`), `session`
-(`localStorage["hostops_session"]`), `route`, `selectedDate`. `render()` rebuilds the
-whole `#app` innerHTML from these on every change. `openApts` (a `Set`) keeps
-apartment-card expansion state across re-renders.
+**State** lives in module-scoped variables in the script: `db` (`{apartments, bookings}`,
+persisted to `localStorage["hostops_db"]`), `ACCOUNTS` (persisted to
+`localStorage["hostops_accounts"]`, seeded from `seedAccounts()`), `session`
+(`localStorage["hostops_session"]`), `route` (`"checkinout" | "apartments" | "users"`),
+`selectedDate`. `render()` rebuilds the whole `#app` innerHTML from these on every change.
+`openApts` (a `Set`) keeps apartment-card expansion state across re-renders.
 
 **Events are fully delegated on `document`** (`click` / `input` / `change` / `submit`),
 attached once — never re-wired after a render. Handlers dispatch on `data-action` /
@@ -61,8 +66,11 @@ local-time helpers (`fmtISO`, `addDays`) — never `toISOString()`, which would 
 day in +02:00.
 
 **Role gating:** `isAdmin()` guards the `+` create buttons and the per-apartment status
-`<select>`; workers get a read-only status pill. Both roles otherwise see the same
-screens.
+`<select>`; workers get a read-only status pill. The Users page (`screenUsers()`) is
+admin-only end to end: hidden from `bottomNav()`, and `screenUsers()` itself falls back to
+the check-in/out screen if reached with a non-admin session. `route` resets to `"checkinout"`
+on logout so a worker who logs in next doesn't land on a stale admin route. Both roles
+otherwise see the same screens.
 
 **Theme:** CSS custom properties on `:root`, with the dark palette duplicated under both
 `@media (prefers-color-scheme: dark)` and `:root[data-theme="dark"]`. Default follows the
@@ -73,8 +81,11 @@ blocks in sync when editing colors.
 
 ## Editing hot spots
 
-- **Accounts:** `ACCOUNTS` array near the top of `<script>`. Marked with a `ponytail:`
-  comment — plaintext, no backend; a real deployment needs a server + hashed passwords.
+- **Accounts:** default 3 accounts come from `seedAccounts()` near the top of `<script>`;
+  the live list is the module-scoped `ACCOUNTS` (loaded/saved via `loadAccounts()` /
+  `saveAccounts()`), mutated in place by the Users page so the unchanged login lookup
+  (`ACCOUNTS.find(...)`) keeps working. Marked with a `ponytail:` comment — plaintext, no
+  backend; a real deployment needs a server + hashed passwords.
 - **WhatsApp / greeting copy:** the `MESSAGES` object. `checkin` is a fixed template
   (worker name + apartment `town`); `checkout` is free to reword.
 - **Tax rule:** `TAX_RATE` (€1.60) and `TAX_FREE_AGE` (12) constants; math in
