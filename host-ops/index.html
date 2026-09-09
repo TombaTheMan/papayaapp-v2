@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#6a44ff">
-<title>Host Ops</title>
+<title>Papaya Travel</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none !important}
@@ -13,7 +13,7 @@
   --bg:#ffffff; --surface:#f6f4fc; --surface-2:#edeafb; --card:#ffffff;
   --text:#1b1830; --dim:#6c6885; --border:#e9e5f5;
   --accent:#6a44ff; --accent-2:#5734ec; --accent-soft:#efeaff; --on-accent:#fff;
-  --green:#12b981; --orange:#f6a723; --blue:#3d9bff;
+  --green:#12b981; --orange:#f6a723; --blue:#3d9bff; --red:#ef4444;
   --shadow:0 1px 2px rgba(20,16,45,.05), 0 10px 30px rgba(20,16,45,.06);
   --r:18px; --r-sm:12px; --ease:cubic-bezier(.2,.7,.2,1);
 }
@@ -22,7 +22,7 @@
     --bg:#131120; --surface:#1c1a2c; --surface-2:#252239; --card:#1c1a2c;
     --text:#f2f0fa; --dim:#a29ebb; --border:#312d47;
     --accent:#8f74ff; --accent-2:#7e61f5; --accent-soft:#241f3d;
-    --green:#1fc98d; --orange:#ffb43d; --blue:#4ea6ff;
+    --green:#1fc98d; --orange:#ffb43d; --blue:#4ea6ff; --red:#f87171;
     --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,0,0,.45);
   }
 }
@@ -34,7 +34,7 @@
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,0,0,.45);
 }
 html,body{background:var(--bg);color:var(--text)}
-body{font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 #app{max-width:480px;margin:0 auto;min-height:100dvh;padding-bottom:100px}
 h2{font-size:22px;letter-spacing:-.02em;margin:2px 0}
 h3{font-size:17px;letter-spacing:-.01em;margin-bottom:12px}
@@ -168,6 +168,18 @@ dialog menu button{flex:1}
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms !important;animation-duration:.01ms !important}
 }
+
+/* --- Apple-style hover (mouse-capable devices only; touch keeps the plain :active press) --- */
+.btn,.btn-ghost,.ico,.iconbtn,.step{transition:transform .15s var(--ease),box-shadow .15s var(--ease),background .15s var(--ease),opacity .15s var(--ease)}
+.btn-red{background:var(--red)}
+.btn-green{background:var(--green)}
+@media (hover:hover){
+  .btn:hover{transform:translateY(-1px) scale(1.015);box-shadow:0 6px 16px rgba(20,16,45,.18)}
+  .btn-ghost:hover{transform:translateY(-1px) scale(1.015);box-shadow:var(--shadow)}
+  .btn-red:hover{box-shadow:0 6px 16px color-mix(in srgb,var(--red) 40%,transparent)}
+  .btn-green:hover{box-shadow:0 6px 16px color-mix(in srgb,var(--green) 40%,transparent)}
+  .ico:hover,.iconbtn:hover,.step:hover{transform:translateY(-1px) scale(1.07);opacity:.9}
+}
 </style>
 </head>
 <body>
@@ -260,6 +272,8 @@ function seedDB() {
     guest_count: guests, tax_paying_guest_count: taxG,
     arrival_date: arr, departure_date: dep,
     actual_deposit_taken: deposit, notes: notes || "",
+    // already-past dates are treated as already confirmed; today/future default to pending
+    arrived: arr < T, departed: dep < T,
   });
 
   const bookings = [
@@ -363,7 +377,7 @@ function themeIcon() {
 
 function topbar() {
   return `<header class="topbar">
-    <div class="brand"><span class="mark">${I.grid}</span> Host Ops</div>
+    <div class="brand"><span class="mark">${I.grid}</span> Papaya Travel</div>
     <div class="top-actions">
       <span class="who">${esc(session.name)}</span>
       <button class="iconbtn" data-action="theme" aria-label="Toggle dark mode">${themeIcon()}</button>
@@ -489,6 +503,11 @@ function bookingCard(b, kind) {
       <a class="ico" href="${phone ? waUrl : "#"}" target="_blank" rel="noopener"
          aria-label="Message guest on WhatsApp" ${phone ? "" : 'aria-disabled="true"'}>${I.chat}</a>
     </div>
+
+    ${kind === "in" && !b.arrived
+      ? `<button class="btn" style="margin-top:12px" data-action="mark-arrived" data-id="${b.id}">Arrived</button>` : ""}
+    ${kind === "out" && !b.departed
+      ? `<button class="btn" style="margin-top:12px" data-action="mark-departed" data-id="${b.id}">They left</button>` : ""}
   </div>`;
 }
 
@@ -525,7 +544,11 @@ function apartmentCard(a) {
       <div class="kv"><span>Arrival</span><span>${prettyDate(b.arrival_date)}</span></div>
       <div class="kv"><span>Departure</span><span>${prettyDate(b.departure_date)}</span></div>
       <div class="kv"><span>Deposit collected</span><span>${eur0(b.actual_deposit_taken)}</span></div>
-      <div class="kv"><span>Tourist tax collected</span><span>${eur(touristTax(b.tax_paying_guest_count, nights))}</span></div>`;
+      <div class="kv"><span>Tourist tax collected</span><span>${eur(touristTax(b.tax_paying_guest_count, nights))}</span></div>
+      <div class="field" style="margin-top:10px">
+        <label class="f">Notes</label>
+        <textarea rows="2" data-field="notes" data-id="${b.id}" placeholder="Notes about the guests…">${esc(b.notes)}</textarea>
+      </div>`;
   } else {
     detail = `<div class="empty" style="padding:14px 0">No current or upcoming reservation.</div>`;
   }
@@ -556,7 +579,7 @@ function apartmentCard(a) {
 function renderLogin() {
   app.innerHTML = `<div class="login-wrap"><form class="login fade" data-form="login">
     <div class="mark-lg">${I.grid}</div>
-    <h2>Host Ops</h2>
+    <h2>Papaya Travel</h2>
     <p class="dim" style="margin:4px 0 18px">Check-ins & check-outs</p>
     <div class="field"><label class="f">Username</label>
       <input name="username" autocomplete="username" autocapitalize="none" required></div>
@@ -600,7 +623,7 @@ document.addEventListener("click", e => {
     case "zone":
       activeZone = +el.dataset.zone; render(); break;
     case "toggle-apt": {
-      if (e.target.closest("select")) break;   // let the admin status dropdown work without collapsing the card
+      if (e.target.closest("select, textarea, input")) break;   // let form controls work without collapsing the card
       const id = el.dataset.id;
       openApts.has(id) ? openApts.delete(id) : openApts.add(id);
       el.classList.toggle("open");
@@ -608,6 +631,8 @@ document.addEventListener("click", e => {
     }
     case "add-booking":   openBookingDialog(); break;
     case "add-apartment": openApartmentDialog(); break;
+    case "mark-arrived":  confirmDialog("confirm-arrived", el.dataset.id, "Are you sure they came?"); break;
+    case "mark-departed": confirmDialog("confirm-departed", el.dataset.id, "Are you sure they left?"); break;
     case "dlg-cancel":    dlg.close("cancel"); break;
   }
 });
@@ -677,6 +702,7 @@ dlg.addEventListener("close", () => {
       departure_date: fd.get("departure_date"),
       actual_deposit_taken: Math.max(0, num("actual_deposit_taken", 0)),
       notes: String(fd.get("notes") || "").trim(),
+      arrived: false, departed: false,
     });
   } else if (form.dataset.form === "apartment") {
     db.apartments.push({
@@ -689,6 +715,12 @@ dlg.addEventListener("close", () => {
       deposit_per_person: Math.max(0, num("deposit_per_person", 15)),
       status: fd.get("status") || "ready",
     });
+  } else if (form.dataset.form === "confirm-arrived") {
+    const b = db.bookings.find(x => x.id === form.dataset.id);
+    if (b) { b.arrived = true; const apt = aptById(b.apartmentId); if (apt) apt.status = "occupied"; }
+  } else if (form.dataset.form === "confirm-departed") {
+    const b = db.bookings.find(x => x.id === form.dataset.id);
+    if (b) { b.departed = true; const apt = aptById(b.apartmentId); if (apt) apt.status = "cleaning"; }
   }
   saveDB(db);
   render();
@@ -703,6 +735,17 @@ function dialogShell(kind, title, body) {
     <menu>
       <button type="button" class="btn-ghost" data-action="dlg-cancel">Cancel</button>
       <button value="ok" class="btn">Save</button>
+    </menu>
+  </form>`;
+  dlg.showModal();
+}
+
+function confirmDialog(kind, id, message) {
+  dlg.innerHTML = `<form method="dialog" class="dform" data-form="${kind}" data-id="${id}">
+    <h3>${esc(message)}</h3>
+    <menu>
+      <button type="button" class="btn btn-red" data-action="dlg-cancel">Cancel</button>
+      <button value="ok" class="btn btn-green">Confirm</button>
     </menu>
   </form>`;
   dlg.showModal();
