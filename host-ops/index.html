@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#6a44ff">
 <title>Papaya Travel</title>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     GOOGLE MAPS API KEY  ▸▸▸  PASTE YOUR KEY BELOW  ◂◂◂
+     Swap YOUR_GOOGLE_MAPS_API_KEY_HERE for a real key to turn on address
+     autocomplete in the New / Edit apartment dialog. With no key (or offline
+     / blocked), the address field stays a plain text input — nothing breaks.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script>window.GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY_HERE";</script>
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none !important}
@@ -188,6 +197,32 @@ dialog menu button{flex:1}
 .dform label.f{margin-top:12px}
 .dform h3{margin-bottom:4px}
 
+/* searchable apartment picker (booking dialog) */
+.combo{position:relative}
+.combo-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:11px 12px;text-align:left;transition:border-color .15s var(--ease)}
+.combo-trigger:active{border-color:var(--accent)}
+.combo-trigger .chev{transform:rotate(90deg);flex:none}
+.combo-panel{margin-top:8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);
+  box-shadow:var(--shadow);overflow:hidden}
+.combo-panel .combo-search{border:0;border-bottom:1px solid var(--border);border-radius:0;background:var(--card)}
+.combo-panel .combo-search:focus{outline:0;border-color:var(--border);border-bottom-color:var(--accent);border-bottom-width:2px}
+.combo-list{max-height:44vh;overflow-y:auto;padding:6px;-webkit-overflow-scrolling:touch}
+.combo-group{font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 4px}
+.combo-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;
+  font:inherit;color:var(--text);background:transparent;border:0;border-radius:10px;padding:8px 10px;text-align:left;
+  transition:background .15s var(--ease)}
+.combo-opt.sel{color:var(--accent);font-weight:700;background:var(--accent-soft)}
+.combo-opt:active{background:var(--surface-2)}
+@media (hover:hover){.combo-opt:hover{background:var(--surface)}}
+
+/* Google Places autocomplete widget — best-effort match to the .f text inputs */
+gmp-place-autocomplete{display:block;width:100%;font:inherit;
+  --gmp-mat-color-surface:var(--surface);--gmp-mat-color-on-surface:var(--text);
+  --gmp-mat-color-on-surface-variant:var(--dim);--gmp-mat-color-outline:var(--border);
+  --gmp-mat-color-primary:var(--accent)}
+
 /* login */
 .login-wrap{min-height:100dvh;display:grid;place-items:center;padding:24px}
 .login{width:100%;max-width:340px;text-align:center}
@@ -200,6 +235,12 @@ dialog menu button{flex:1}
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms !important;animation-duration:.01ms !important}
 }
+
+/* Fix 1 — drop the double-tap-to-zoom wait on everything tappable (mobile).
+   Fields already inherit the 16px body font, so iOS focus-zoom isn't the issue;
+   this kills the native double-tap gesture delay on interactive, non-form elements. */
+.btn,.btn-ghost,.ico,.iconbtn,.step,.seg button,.nav a,.card.apt,.undo-link,.toast-undo,
+.combo-trigger,.combo-opt,[data-action]{touch-action:manipulation}
 
 /* --- Apple-style hover (mouse-capable devices only; touch keeps the plain :active press) --- */
 .btn,.btn-ghost,.ico,.iconbtn,.step{transition:transform .15s var(--ease),box-shadow .15s var(--ease),background .15s var(--ease),opacity .15s var(--ease)}
@@ -603,6 +644,8 @@ const I = {
   trash: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M9 7V4h6v3"/></svg>`,
   list:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>`,
   star:  `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.85-4.25 4.15 1 5.85L12 17.1l-5.25 2.75 1-5.85L3.5 9.65l5.9-.85z"/></svg>`,
+  copy:  `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M15 5.5A2.5 2.5 0 0 0 12.5 3H5.5A2.5 2.5 0 0 0 3 5.5V13"/></svg>`,
+  check: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`,
 };
 
 /* ========================================================================
@@ -748,11 +791,15 @@ function bookingCard(b, kind) {
   return `<div class="card" data-booking="${b.id}">
     <div class="between">
       <div>
-        <div style="font-weight:700;letter-spacing:-.01em">${esc(apt.name || "—")}</div>
-        <div class="dim" style="font-size:13px">${esc(b.guest_name)} · ${src}</div>
+        <div style="font-weight:700;font-size:17px;letter-spacing:-.015em">${esc(b.guest_name)}</div>
+        <div class="dim" style="font-size:13px;margin-top:1px">${esc(apt.name || "—")} · ${src}</div>
       </div>
       ${statusCol}
     </div>
+    ${b.guest_phone ? `<div class="row" style="gap:8px;margin-top:10px">
+      <span style="font-weight:600">${esc(b.guest_phone)}</span>
+      ${phone ? `<button class="ico" data-action="copy-phone" data-id="${b.id}" aria-label="Copy phone number">${I.copy}</button>` : ""}
+    </div>` : ""}
 
     <div class="row2" style="margin-top:12px">
       <div><div class="metric-label">Guests</div><div style="font-weight:600">${b.guest_count}</div></div>
@@ -1151,6 +1198,110 @@ function hideToast() {
   setTimeout(() => { host.hidden = true; host.innerHTML = ""; }, 170);
 }
 
+/* ---- copy guest phone to clipboard (Fix 4) ---- */
+function copyPhone(text) {
+  const ok = () => showToast("Phone number copied");
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(ok, () => { if (legacyCopy(text)) ok(); });
+  } else if (legacyCopy(text)) ok();
+}
+function legacyCopy(text) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+    document.body.appendChild(ta);
+    ta.select();
+    const done = document.execCommand("copy");
+    ta.remove();
+    return done;
+  } catch (e) { return false; }
+}
+
+/* ---- searchable apartment picker list (Fix 3) ---- */
+function aptComboListHtml(query, selectedId) {
+  const q = String(query || "").trim().toLowerCase();
+  const match = db.apartments.filter(a => !q || String(a.name).toLowerCase().includes(q));
+  const group = (title, list) => list.length
+    ? `<div class="combo-group">${title}</div>` + list.map(a =>
+        `<button type="button" class="combo-opt${a.id === selectedId ? " sel" : ""}"
+          data-action="apt-combo-pick" data-id="${a.id}" data-name="${esc(a.name)}">
+          <span>${esc(a.name)}</span>${a.id === selectedId ? I.check : ""}</button>`).join("")
+    : "";
+  const seen = new Set();
+  let html = [1, 2, 3].map(z => {
+    const list = match.filter(a => Number(a.zone) === z);
+    list.forEach(a => seen.add(a.id));
+    return group("Zone " + z, list);
+  }).join("");
+  html += group("Other", match.filter(a => !seen.has(a.id)));   // never hide an apartment with an odd/missing zone
+  return html || `<div class="empty" style="padding:18px 10px">No apartments match.</div>`;
+}
+
+/* ---- Google Places address autocomplete (Fix 2 — optional; needs a key, see <head>) ---- */
+let _gmapsPromise = null;
+function loadGoogleMaps() {
+  if (_gmapsPromise) return _gmapsPromise;
+  const key = window.GOOGLE_MAPS_API_KEY;
+  if (!key || key === "YOUR_GOOGLE_MAPS_API_KEY_HERE")
+    return (_gmapsPromise = Promise.reject(new Error("no Google Maps API key")));
+  _gmapsPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key) +
+            "&v=weekly&libraries=places&loading=async";
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = () => { _gmapsPromise = null; reject(new Error("Google Maps failed to load")); };
+    document.head.appendChild(s);
+  });
+  return _gmapsPromise;
+}
+function setHidden(name, val) {
+  const el = dlg.querySelector('input[name="' + name + '"]');
+  if (el) el.value = val;
+}
+// Called right after the apartment dialog opens (its <input> is rendered fresh each time).
+// On any failure the plain text input is left exactly as-is.
+function initAddressAutocomplete() {
+  const input = dlg.querySelector('input[name="address"]');
+  if (!input || input.dataset.acReady) return;
+  loadGoogleMaps()
+    .then(() => google.maps.importLibrary("places"))
+    .then(() => {
+      if (!dlg.open || !dlg.contains(input)) return;
+      const ac = new google.maps.places.PlaceAutocompleteElement();
+      ac.className = "addr-ac";
+      (input.closest("label.f") || input).after(ac);
+      input.hidden = true;
+      input.required = false;          // hidden inputs are barred from constraint validation — see submit handler
+      input.dataset.acReady = "1";
+      const pick = async ev => {
+        const pred = ev.placePrediction || (ev.detail && ev.detail.placePrediction);
+        const place = pred ? pred.toPlace() : (ev.place || (ev.detail && ev.detail.place));
+        if (!place) return;
+        try { await place.fetchFields({ fields: ["formattedAddress", "location"] }); }
+        catch (e) { return; }
+        input.value = place.formattedAddress || input.value;
+        const loc = place.location;
+        if (loc) {
+          setHidden("lat", typeof loc.lat === "function" ? loc.lat() : loc.lat);
+          setHidden("lng", typeof loc.lng === "function" ? loc.lng() : loc.lng);
+        }
+        const err = dlg.querySelector(".err");
+        if (err) err.textContent = "";
+      };
+      ac.addEventListener("gmp-select", pick);
+      ac.addEventListener("gmp-placeselect", pick);   // older widget builds
+      // keep whatever the user typed even if they never pick a suggestion, so Save doesn't reject a valid address
+      ac.addEventListener("input", () => {
+        const typed = (ac.value != null ? ac.value : (ac.querySelector("input") || {}).value || "").trim();
+        if (typed) { input.value = typed; const err = dlg.querySelector(".err"); if (err) err.textContent = ""; }
+      });
+    })
+    .catch(() => { /* no key / offline / blocked — the plain text input stays */ });
+}
+
 // keep the live session (topbar name, isAdmin() checks) in sync when an admin edits their own account
 function syncSelfSession(acc) {
   if (!session || acc.username !== session.username) return;
@@ -1159,6 +1310,12 @@ function syncSelfSession(acc) {
 }
 
 document.addEventListener("click", e => {
+  // collapse an open apartment-combo panel on any click outside it
+  if (dlg.open && !e.target.closest("[data-combo]")) {
+    const p = dlg.querySelector(".combo-panel:not([hidden])");
+    if (p) p.hidden = true;
+  }
+
   const el = e.target.closest("[data-action]");
   if (!el) return;
   const a = el.dataset.action;
@@ -1266,6 +1423,36 @@ document.addEventListener("click", e => {
       break;
     }
     case "dlg-cancel":    dlg.close("cancel"); break;
+
+    case "copy-phone": {
+      const b = db.bookings.find(x => x.id === el.dataset.id);
+      if (b && b.guest_phone) copyPhone(b.guest_phone);
+      break;
+    }
+    case "apt-combo-open": {
+      const combo = el.closest("[data-combo]");
+      const panel = combo.querySelector(".combo-panel");
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) {
+        const search = panel.querySelector(".combo-search");
+        search.value = "";
+        combo.querySelector("[data-combo-list]").innerHTML =
+          aptComboListHtml("", combo.querySelector('[name="apartmentId"]').value);
+        search.focus();
+      }
+      break;
+    }
+    case "apt-combo-pick": {
+      const combo = el.closest("[data-combo]");
+      combo.querySelector('[name="apartmentId"]').value = el.dataset.id;
+      const label = combo.querySelector("[data-combo-label]");
+      label.textContent = el.dataset.name;
+      label.classList.remove("dim");
+      combo.querySelector(".combo-panel").hidden = true;
+      const err = combo.closest("form").querySelector(".err");
+      if (err) err.textContent = "";
+      break;
+    }
   }
 });
 
@@ -1287,6 +1474,20 @@ document.addEventListener("input", e => {
     const pv = dlg.querySelector(`[data-tpl-preview="${el.dataset.tpl}"]`);
     if (pv) pv.textContent = fillTemplate(el.value, templateSample());
   }
+  // live filter for the searchable apartment picker
+  if (el.dataset.action === "apt-combo-search") {
+    const combo = el.closest("[data-combo]");
+    combo.querySelector("[data-combo-list]").innerHTML =
+      aptComboListHtml(el.value, combo.querySelector('[name="apartmentId"]').value);
+  }
+});
+
+// Enter inside the apartment-search field must pick the top match, not submit the booking form
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter" || e.target.dataset.action !== "apt-combo-search") return;
+  e.preventDefault();
+  const first = e.target.closest("[data-combo]").querySelector(".combo-opt");
+  if (first) first.click();
 });
 
 document.addEventListener("change", e => {
@@ -1324,6 +1525,18 @@ document.addEventListener("submit", e => {
       e.preventDefault();
       form.querySelector(".err").textContent = username ? "That username is already taken." : "Username is required.";
     }
+  } else if (form.dataset.form === "booking" && e.submitter?.value === "ok") {
+    // the apartment picker is a custom combobox (hidden input) — validate it here
+    if (!new FormData(form).get("apartmentId")) {
+      e.preventDefault();
+      form.querySelector(".err").textContent = "Please choose an apartment.";
+    }
+  } else if (form.dataset.form === "apartment" && e.submitter?.value === "ok") {
+    // native `required` is dropped from #address once the Places widget mounts — re-check here
+    if (!String(new FormData(form).get("address") || "").trim()) {
+      e.preventDefault();
+      form.querySelector(".err").textContent = "Address is required.";
+    }
   }
 });
 
@@ -1360,6 +1573,10 @@ dlg.addEventListener("close", () => {
       deposit_per_person: Math.max(0, num("deposit_per_person", 15)),
       status: fd.get("status") || "ready",
     };
+    // optional coords from Google Places — only written when actually set (never clobbers)
+    const latRaw = String(fd.get("lat") || "").trim(), lngRaw = String(fd.get("lng") || "").trim();
+    if (latRaw && Number.isFinite(+latRaw)) patch.lat = +latRaw;
+    if (lngRaw && Number.isFinite(+lngRaw)) patch.lng = +lngRaw;
     const existing = form.dataset.id && aptById(form.dataset.id);
     if (existing) Object.assign(existing, patch);
     else db.apartments.push({ id: nextId(), ...patch });
@@ -1549,10 +1766,20 @@ function openConfirmAction(kind, id) {
 }
 
 function openBookingDialog() {
-  const opts = db.apartments.map(a => `<option value="${a.id}">${esc(a.name)} (Zone ${a.zone})</option>`).join("");
   const T = todayStr();
   dialogShell("booking", "New check-in / check-out", `
-    <label class="f">Apartment<select name="apartmentId" required>${opts}</select></label>
+    <label class="f">Apartment</label>
+    <div class="combo" data-combo>
+      <input type="hidden" name="apartmentId" value="">
+      <button type="button" class="combo-trigger" data-action="apt-combo-open">
+        <span data-combo-label class="dim">Select apartment…</span>${I.chev}
+      </button>
+      <div class="combo-panel" hidden>
+        <input type="text" class="combo-search" data-action="apt-combo-search"
+               placeholder="Search apartments…" autocapitalize="none" autocomplete="off" aria-label="Search apartments">
+        <div class="combo-list" data-combo-list>${aptComboListHtml("", "")}</div>
+      </div>
+    </div>
     <label class="f">Guest name<input name="guest_name" required></label>
     <label class="f">Guest phone<input name="guest_phone" placeholder="+385 91 234 5678" inputmode="tel"></label>
     <label class="f">Booking source
@@ -1568,6 +1795,7 @@ function openBookingDialog() {
     </div>
     <label class="f">Deposit taken (€)<input type="number" name="actual_deposit_taken" min="0" value="0" inputmode="numeric"></label>
     <label class="f">Notes<textarea name="notes" rows="2"></textarea></label>
+    <div class="err dim" style="color:var(--orange);margin-top:10px;min-height:16px"></div>
   `);
 }
 
@@ -1579,6 +1807,8 @@ function openApartmentDialog(aptId) {
   dialogShell("apartment", a ? "Edit apartment" : "New apartment", `
     <label class="f">Name<input name="name" value="${a ? esc(a.name) : ""}" required></label>
     <label class="f">Address<input name="address" value="${a ? esc(a.address) : ""}" placeholder="Street name & number" required></label>
+    <input type="hidden" name="lat" value="${a && a.lat != null ? esc(a.lat) : ""}">
+    <input type="hidden" name="lng" value="${a && a.lng != null ? esc(a.lng) : ""}">
     <div class="row2">
       <label class="f">Town / location<input name="town" value="${a ? esc(a.town) : "Novalja"}"></label>
       <label class="f">Zone<select name="zone">${zoneOpts}</select></label>
@@ -1588,7 +1818,9 @@ function openApartmentDialog(aptId) {
       <label class="f">Deposit / person (€)<input type="number" name="deposit_per_person" min="0" value="${a ? a.deposit_per_person : 15}" inputmode="numeric"></label>
     </div>
     <label class="f">Status<select name="status">${statusOpts}</select></label>
+    <div class="err dim" style="color:var(--orange);margin-top:10px;min-height:16px"></div>
   `, a ? { id: aptId } : {});
+  initAddressAutocomplete();
 }
 
 function openWaDialog(bookingId, kind) {
@@ -1769,6 +2001,18 @@ function toggleTheme() {
     // aptCleanUndoable: only while apt is still 'ready' with a trailing 'cleaned'
     ok(aptCleanUndoable({ status: "ready", _history: [{ a: "cleaned" }] }) === true, "aptCleanUndoable: ready + cleaned");
     ok(aptCleanUndoable({ status: "occupied", _history: [{ a: "cleaned" }] }) === false, "aptCleanUndoable: not once moved on");
+  }
+
+  // Fix 3 — searchable apartment picker: filters by name, groups by zone, marks selection
+  {
+    const s = db.apartments[0];
+    if (s) {
+      const html = aptComboListHtml(s.name.slice(0, 3).toLowerCase(), s.id);
+      ok(html.includes(esc(s.name)) && html.includes("Zone " + s.zone) && html.includes("combo-opt sel"),
+         "aptComboList: name filter + zone header + selected row");
+    }
+    ok(aptComboListHtml("zzz-no-such-apartment", "").includes("No apartments match"),
+       "aptComboList: empty state when nothing matches");
   }
 })();
 
