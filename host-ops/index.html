@@ -23,31 +23,42 @@
   --text:#1b1830; --dim:#6c6885; --border:#e9e5f5;
   --accent:#6a44ff; --accent-2:#5734ec; --accent-soft:#efeaff; --on-accent:#fff;
   --green:#12b981; --orange:#f6a723; --blue:#3d9bff; --red:#ef4444;
+  /* floating layers (dialogs, toast, popovers) — the heavier elevation */
   --shadow:0 1px 2px rgba(20,16,45,.05), 0 10px 30px rgba(20,16,45,.06);
-  --r:18px; --r-sm:12px; --ease:cubic-bezier(.2,.7,.2,1);
+  /* resting surfaces (cards) — soft, tight, faintly purple-tinted */
+  --shadow-card:0 1px 2px rgba(58,40,140,.05), 0 5px 16px rgba(58,40,140,.05);
+  --r:18px; --r-sm:12px; --r-lg:22px;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --ease-pop:cubic-bezier(.34,1.56,.64,1);   /* deliberate overshoot — success/accent moments only */
+  /* type scale */
+  --fs-title:30px; --fs-metric:33px; --fs-headline:17px; --fs-body:16px; --fs-footnote:13px; --fs-caption:11px;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --bg:#131120; --surface:#1c1a2c; --surface-2:#252239; --card:#1c1a2c;
-    --text:#f2f0fa; --dim:#a29ebb; --border:#312d47;
+    --bg:#000000; --surface:#141320; --surface-2:#1e1c2b; --card:#161520;
+    --text:#f4f2fb; --dim:#9b97ad; --border:#2b2838;
     --accent:#8f74ff; --accent-2:#7e61f5; --accent-soft:#241f3d;
     --green:#1fc98d; --orange:#ffb43d; --blue:#4ea6ff; --red:#f87171;
-    --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,0,0,.45);
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 34px rgba(0,0,0,.55);
+    --shadow-card:0 1px 2px rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.4);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#131120; --surface:#1c1a2c; --surface-2:#252239; --card:#1c1a2c;
-  --text:#f2f0fa; --dim:#a29ebb; --border:#312d47;
+  --bg:#000000; --surface:#141320; --surface-2:#1e1c2b; --card:#161520;
+  --text:#f4f2fb; --dim:#9b97ad; --border:#2b2838;
   --accent:#8f74ff; --accent-2:#7e61f5; --accent-soft:#241f3d;
   --green:#1fc98d; --orange:#ffb43d; --blue:#4ea6ff; --red:#f87171;
-  --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,0,0,.45);
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 34px rgba(0,0,0,.55);
+  --shadow-card:0 1px 2px rgba(0,0,0,.35), 0 6px 18px rgba(0,0,0,.4);
 }
 html,body{background:var(--bg);color:var(--text)}
 body{font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 #app{max-width:480px;margin:0 auto;min-height:100dvh;padding-bottom:100px}
-h2{font-size:22px;letter-spacing:-.02em;margin:2px 0}
-h3{font-size:17px;letter-spacing:-.01em;margin-bottom:12px}
+h2{font-size:var(--fs-title);font-weight:700;letter-spacing:-.022em;line-height:1.15;margin:2px 0}
+h3{font-size:var(--fs-headline);font-weight:600;letter-spacing:-.012em;margin-bottom:12px}
 small,.dim{color:var(--dim)}
+/* de-emphasise with weight, not only colour — reads calmer than a colour-only shift */
+.sub{font-weight:400;color:var(--dim)}
 button{font:inherit;cursor:pointer}
 a{color:var(--accent);text-decoration:none}
 
@@ -65,8 +76,8 @@ a{color:var(--accent);text-decoration:none}
 .who{font-size:13px;color:var(--dim);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .iconbtn{width:40px;height:40px;border:1px solid var(--border);background:var(--surface);color:var(--text);
-  border-radius:11px;display:grid;place-items:center;transition:transform .09s var(--ease)}
-.iconbtn:active{transform:scale(.94)}
+  border-radius:11px;display:grid;place-items:center;transition:transform .12s var(--ease)}
+.iconbtn:active{transform:scale(.96)}
 
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;
   padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--border)}
@@ -92,12 +103,16 @@ a{color:var(--accent);text-decoration:none}
 @keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 .fade{animation:fade .22s var(--ease)}
 
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+/* Apple cards are flatter — hairline border, no stacked elevation. Reserve the
+   heavier --shadow for genuinely floating things (dialog, toast, combo-panel). */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px}
 .card + .card{margin-top:12px}
-.muted-card{background:var(--surface);box-shadow:none}
+.muted-card{background:var(--surface);box-shadow:none;border-color:transparent}
+/* the check-in/out action cards do float above the screen — give them the soft lift */
+.cardgrid > .card{box-shadow:var(--shadow-card)}
 
-.metric{font-size:30px;font-weight:700;letter-spacing:-.025em;line-height:1}
-.metric-label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.metric{font-size:var(--fs-metric);font-weight:700;letter-spacing:-.03em;line-height:1}
+.metric-label{font-size:var(--fs-caption);color:var(--dim);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 
 .pill{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;text-transform:capitalize;white-space:nowrap}
 .s-occupied{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
@@ -114,50 +129,68 @@ a{color:var(--accent);text-decoration:none}
 .kv span:first-child{color:var(--dim)}
 .kv span:last-child{font-weight:600;text-align:right}
 
-.btn{border:0;background:var(--accent);color:var(--on-accent);font-weight:600;padding:12px 16px;border-radius:13px;
-  width:100%;transition:transform .09s var(--ease),background .15s}
-.btn:active{transform:scale(.98);background:var(--accent-2)}
-.btn-ghost{border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:600;
-  padding:12px 16px;border-radius:13px;transition:transform .09s var(--ease)}
-.btn-ghost:active{transform:scale(.98)}
+.btn{border:0;color:var(--on-accent);font-weight:600;padding:12px 16px;border-radius:15px;width:100%;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent),#fff 8%),var(--accent));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14);
+  transition:transform .12s var(--ease),background .15s,box-shadow .15s var(--ease)}
+.btn:active{transform:scale(.96);background:var(--accent-2)}
+/* iOS secondary button — tonal fill, no border */
+.btn-ghost{border:0;background:var(--accent-soft);color:var(--accent);font-weight:600;
+  padding:12px 16px;border-radius:15px;transition:transform .12s var(--ease),background .15s var(--ease)}
+.btn-ghost:active{transform:scale(.96);background:color-mix(in srgb,var(--accent) 22%,transparent)}
 .btn-row{display:flex;gap:10px}
 
 label.f{display:block;font-size:12px;color:var(--dim);font-weight:700;margin-bottom:6px}
 input,select,textarea{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);
-  border-radius:12px;padding:11px 12px;width:100%}
+  border-radius:12px;padding:11px 12px;width:100%;
+  transition:border-color .16s var(--ease),box-shadow .16s var(--ease)}
 input[type=number]{-moz-appearance:textfield}
 textarea{resize:vertical;min-height:44px}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 18%,transparent)}
 .field + .field{margin-top:10px}
+/* horizontal "settings row" for short single-value fields (label left, control right) */
+.f-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
+.f-row > span{font-size:12px;color:var(--dim);font-weight:700;flex:none}
+.f-row > select,.f-row > input{width:auto;min-width:0;flex:1;max-width:60%;text-align:right}
 
 /* action icons on a booking */
 .acts{display:flex;gap:8px}
 .ico{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;
-  background:var(--surface);border:1px solid var(--border);color:var(--accent);transition:transform .09s var(--ease)}
-.ico:active{transform:scale(.93)}
+  background:var(--surface);border:1px solid var(--border);color:var(--accent);transition:transform .12s var(--ease)}
+.ico:active{transform:scale(.96)}
 .ico[aria-disabled=true]{opacity:.4;pointer-events:none}
 
-/* segmented date control */
-.seg{display:flex;background:var(--surface-2);border-radius:13px;padding:4px;gap:4px}
-.seg button{flex:1;border:0;background:transparent;color:var(--dim);font-weight:600;padding:9px 6px;
-  border-radius:10px;font-size:14px;transition:color .15s}
-.seg button.on{background:var(--card);color:var(--text);box-shadow:var(--shadow)}
+/* segmented control — one sliding thumb (see layoutSegThumbs), buttons sit transparent on top */
+.seg{position:relative;display:flex;background:var(--surface-2);border-radius:13px;padding:4px;gap:4px}
+.seg-thumb{position:absolute;left:0;top:4px;height:calc(100% - 8px);width:0;border-radius:10px;
+  background:var(--card);box-shadow:var(--shadow-card);pointer-events:none;opacity:0;
+  transition:transform .34s var(--ease),width .34s var(--ease),opacity .2s var(--ease)}
+.seg button{position:relative;z-index:1;flex:1;border:0;background:transparent;color:var(--dim);font-weight:600;
+  padding:9px 6px;border-radius:10px;font-size:14px;transition:color .18s var(--ease)}
+.seg button.on{color:var(--text)}
 .datestep{display:flex;align-items:center;gap:8px;margin-top:10px}
 .datestep input{text-align:center;font-weight:600}
 .step{width:44px;height:44px;flex:none;border:1px solid var(--border);background:var(--surface);border-radius:12px;
-  color:var(--text);display:grid;place-items:center;transition:transform .09s var(--ease)}
-.step:active{transform:scale(.93)}
+  color:var(--text);display:grid;place-items:center;transition:transform .12s var(--ease)}
+.step:active{transform:scale(.96)}
 
 /* apartment card expand */
 .apt{cursor:pointer}
-.apt .exp{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s var(--ease)}
+.apt .exp{display:grid;grid-template-rows:0fr;transition:grid-template-rows .34s var(--ease)}
 .apt.open .exp{grid-template-rows:1fr}
 .apt .exp > div{overflow:hidden}
-.apt .exp .inner{padding-top:14px;margin-top:12px;border-top:1px solid var(--border)}
-.chev{transition:transform .25s var(--ease);color:var(--dim)}
+.apt .exp .inner{padding-top:14px;margin-top:12px;border-top:1px solid var(--border);
+  opacity:0;transform:translateY(6px);
+  transition:opacity .26s var(--ease) .06s,transform .26s var(--ease) .06s}
+.apt.open .exp .inner{opacity:1;transform:none}
+.chev{transition:transform .28s var(--ease-pop);color:var(--dim)}
 .apt.open .chev{transform:rotate(90deg)}
 
-.empty{text-align:center;color:var(--dim);padding:26px 10px;font-size:14px}
+.empty{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;
+  color:var(--dim);padding:34px 16px;font-size:14px;font-weight:400}
+.empty-ic{opacity:.26;line-height:0}
+.empty-ic svg{width:44px;height:44px}
 
 /* undo affordances + audit line (safer check-in/out actions) */
 .stat-col{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none;text-align:right;max-width:52%}
@@ -174,28 +207,36 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
   display:flex;justify-content:center;padding:0 14px;pointer-events:none}
 .toast{pointer-events:auto;display:flex;align-items:center;gap:12px;width:100%;max-width:452px;
   background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);box-shadow:var(--shadow);
-  padding:12px 14px;font-size:14px;font-weight:600}
+  padding:12px 14px;font-size:14px;font-weight:600;animation:toastin .34s var(--ease-pop)}
 .toast > span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.toast > .toast-check{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+  background:color-mix(in srgb,var(--green) 22%,transparent);color:var(--green)}
+.toast > .toast-check svg{width:15px;height:15px;stroke-dasharray:26;stroke-dashoffset:26;animation:draw .34s var(--ease) .07s forwards}
 .toast-undo{flex:none;border:0;background:var(--accent-soft);color:var(--accent);font-weight:700;
-  font-size:13px;padding:7px 14px;border-radius:9px;transition:transform .09s var(--ease)}
-.toast-undo:active{transform:scale(.94)}
+  font-size:13px;padding:7px 14px;border-radius:9px;transition:transform .12s var(--ease)}
+.toast-undo:active{transform:scale(.96)}
+@keyframes toastin{from{opacity:0;transform:translateY(16px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes draw{to{stroke-dashoffset:0}}
 @keyframes fadeout{to{opacity:0;transform:translateY(6px)}}
 .toast.out{animation:fadeout .16s var(--ease) forwards}
 @media (min-width:1024px){#toast{bottom:24px}}
 
-/* dialog */
-dialog{border:0;border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));
+/* dialog / sheet */
+dialog{border:0;border-radius:var(--r-lg) var(--r-lg) 0 0;padding:18px 18px calc(20px + env(safe-area-inset-bottom));
   width:100%;max-width:480px;margin:auto auto 0;background:var(--card);color:var(--text);box-shadow:var(--shadow);
   max-height:calc(100dvh - 20px);overflow-y:auto}
-dialog::backdrop{background:rgba(10,8,24,.45);backdrop-filter:blur(2px)}
-@media (min-width:520px){dialog{border-radius:22px;margin:auto;max-width:520px}}
-dialog[open]{animation:dlgpop .2s var(--ease)}
-dialog[open]::backdrop{animation:fade .2s var(--ease)}
-@keyframes dlgpop{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
-dialog menu{display:flex;gap:10px;margin-top:16px;padding:0}
+dialog::backdrop{background:rgba(8,6,20,.38);backdrop-filter:blur(8px) saturate(120%)}
+@media (min-width:520px){dialog{border-radius:var(--r-lg);margin:auto;max-width:520px;padding-top:22px}}
+dialog[open]{animation:dlgpop .24s var(--ease)}
+dialog[open]::backdrop{animation:fade .24s var(--ease)}
+@keyframes dlgpop{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+dialog menu{display:flex;gap:10px;margin-top:18px;padding:0}
 dialog menu button{flex:1}
 .dform label.f{margin-top:12px}
 .dform h3{margin-bottom:4px}
+/* grabber handle — the "this is a native sheet" signal */
+.sheet-grip{width:36px;height:4px;border-radius:999px;background:var(--dim);opacity:.35;margin:-4px auto 12px}
+@media (min-width:520px){.sheet-grip{display:none}}
 
 /* searchable apartment picker (booking dialog) */
 .combo{position:relative}
@@ -207,7 +248,7 @@ dialog menu button{flex:1}
 .combo-panel{margin-top:8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card);
   box-shadow:var(--shadow);overflow:hidden}
 .combo-panel .combo-search{border:0;border-bottom:1px solid var(--border);border-radius:0;background:var(--card)}
-.combo-panel .combo-search:focus{outline:0;border-color:var(--border);border-bottom-color:var(--accent);border-bottom-width:2px}
+.combo-panel .combo-search:focus{outline:0;border-color:var(--border);box-shadow:inset 0 -2px 0 var(--accent)}
 .combo-list{max-height:44vh;overflow-y:auto;padding:6px;-webkit-overflow-scrolling:touch}
 .combo-group{font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 4px}
 .combo-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;
@@ -232,31 +273,57 @@ gmp-place-autocomplete{display:block;width:100%;font:inherit;
 .login .btn{margin-top:16px}
 .hint{margin-top:14px;font-size:12px;color:var(--dim);line-height:1.7}
 
+/* --- iOS-style bottom tab bar: no pill, icon crossfades outline -> filled --- */
+.nav a.on{color:var(--accent);background:transparent}
+.nav a.on span{font-weight:700}
+.nav-ic{position:relative;width:24px;height:24px;display:grid;place-items:center}
+.nav-ic svg{grid-area:1/1;transition:opacity .2s var(--ease),transform .2s var(--ease)}
+.nav-ic svg + svg{opacity:0}
+.nav a.on .nav-ic svg:first-child{opacity:0}
+.nav a.on .nav-ic svg + svg{opacity:1}
+.nav a:active .nav-ic{transform:scale(.9)}
+
+/* --- grouped list (Apartments / All Bookings) — iOS Settings-style --- */
+.group{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.group > *{padding:14px 16px;border-top:1px solid var(--border)}
+.group > *:first-child{border-top:0}
+@media (min-width:1024px){.group{max-width:660px}}
+.apt-ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;flex:none}
+.apt-ctl select{width:auto;min-width:104px;max-width:132px}
+
+/* --- motion primitives --- */
+@keyframes rowin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes slidefwd{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+@keyframes slideback{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+.slide-fwd{animation:slidefwd .3s var(--ease)}
+.slide-back{animation:slideback .3s var(--ease)}
+.stagger > *{animation:rowin .32s var(--ease) both;animation-delay:calc(var(--i,0) * 22ms)}
+
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms !important;animation-duration:.01ms !important}
+  .stagger > *,.apt .exp .inner{animation-delay:0 !important;transition-delay:0 !important}
+  .seg-thumb{transition:none !important}
 }
 
-/* Fix 1 — drop the double-tap-to-zoom wait on everything tappable (mobile).
-   Fields already inherit the 16px body font, so iOS focus-zoom isn't the issue;
-   this kills the native double-tap gesture delay on interactive, non-form elements. */
-.btn,.btn-ghost,.ico,.iconbtn,.step,.seg button,.nav a,.card.apt,.undo-link,.toast-undo,
+/* Fix 1 — drop the double-tap-to-zoom wait on everything tappable (mobile). */
+.btn,.btn-ghost,.ico,.iconbtn,.step,.seg button,.nav a,.apt,.undo-link,.toast-undo,
 .combo-trigger,.combo-opt,[data-action]{touch-action:manipulation}
 
 /* --- Apple-style hover (mouse-capable devices only; touch keeps the plain :active press) --- */
 .btn,.btn-ghost,.ico,.iconbtn,.step{transition:transform .15s var(--ease),box-shadow .15s var(--ease),background .15s var(--ease),opacity .15s var(--ease)}
-.btn-red{background:var(--red)}
-.btn-green{background:var(--green)}
+.btn-red{background:linear-gradient(180deg,color-mix(in srgb,var(--red),#fff 8%),var(--red))}
+.btn-green{background:linear-gradient(180deg,color-mix(in srgb,var(--green),#fff 8%),var(--green))}
 .btn-red:active{background:var(--red)}
 .btn-green:active{background:var(--green)}
 @media (hover:hover){
-  .btn:hover{box-shadow:0 6px 16px rgba(20,16,45,.18)}
-  .btn:hover:not(:active){transform:translateY(-1px) scale(1.015)}
-  .btn-ghost:hover{box-shadow:var(--shadow)}
-  .btn-ghost:hover:not(:active){transform:translateY(-1px) scale(1.015)}
-  .btn-red:hover{box-shadow:0 6px 16px color-mix(in srgb,var(--red) 40%,transparent)}
-  .btn-green:hover{box-shadow:0 6px 16px color-mix(in srgb,var(--green) 40%,transparent)}
+  .btn:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 6px 18px color-mix(in srgb,var(--accent) 30%,transparent)}
+  .btn:hover:not(:active){transform:translateY(-1px) scale(1.012)}
+  .btn-ghost:hover{background:color-mix(in srgb,var(--accent) 16%,transparent)}
+  .btn-ghost:hover:not(:active){transform:translateY(-1px) scale(1.012)}
+  .btn-red:hover{box-shadow:0 6px 18px color-mix(in srgb,var(--red) 40%,transparent)}
+  .btn-green:hover{box-shadow:0 6px 18px color-mix(in srgb,var(--green) 40%,transparent)}
   .ico:hover,.iconbtn:hover,.step:hover{opacity:.9}
-  .ico:hover:not(:active),.iconbtn:hover:not(:active),.step:hover:not(:active){transform:translateY(-1px) scale(1.07)}
+  .ico:hover:not(:active),.iconbtn:hover:not(:active),.step:hover:not(:active){transform:translateY(-1px) scale(1.06)}
 }
 
 /* --- zone tabs: "this is your zone" indicator (Check in/out only) --- */
@@ -646,6 +713,12 @@ const I = {
   star:  `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.85-4.25 4.15 1 5.85L12 17.1l-5.25 2.75 1-5.85L3.5 9.65l5.9-.85z"/></svg>`,
   copy:  `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M15 5.5A2.5 2.5 0 0 0 12.5 3H5.5A2.5 2.5 0 0 0 3 5.5V13"/></svg>`,
   check: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`,
+  // filled (solid) variants — bottom tab bar active state
+  calF:   `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 2a1 1 0 0 0-2 0v1.1A4 4 0 0 0 2.05 7h19.9A4 4 0 0 0 18 3.1V2a1 1 0 1 0-2 0v1H8V2Z"/><path d="M22 9H2v9a4 4 0 0 0 4 4h12a4 4 0 0 0 4-4V9ZM8 13a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/></svg>`,
+  gridF:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="8" height="8" rx="2.4"/><rect x="13" y="3" width="8" height="8" rx="2.4"/><rect x="3" y="13" width="8" height="8" rx="2.4"/><rect x="13" y="13" width="8" height="8" rx="2.4"/></svg>`,
+  tableF: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v1H3V6Zm0 3h6v12H6a3 3 0 0 1-3-3V9Zm8 0h10v9a3 3 0 0 1-3 3h-7V9Z"/></svg>`,
+  listF:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>`,
+  userF:  `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/></svg>`,
 };
 
 /* ========================================================================
@@ -654,15 +727,82 @@ const I = {
 
 const app = $("#app");
 const dlg = $("#dlg");
+const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+// empty state: large low-opacity icon above the message (§8)
+const empty = (msg, icon, style = "") =>
+  `<div class="empty"${style ? ` style="${style}"` : ""}>${icon ? `<span class="empty-ic">${icon}</span>` : ""}<span>${esc(msg)}</span></div>`;
+
+const NAV_ORDER = ["checkinout", "apartments", "schedule", "allbookings", "users"];
+let _prevRoute = route;
 
 function render() {
-  if (!session) { renderLogin(); return; }
+  if (!session) { renderLogin(); _prevRoute = null; return; }
   const screen = route === "apartments" ? screenApartments()
     : route === "schedule" ? screenSchedule()
     : route === "allbookings" ? screenAllBookings()
     : route === "users" ? screenUsers()
     : screenCheckInOut();
-  app.innerHTML = topbar() + `<main class="fade">${screen}</main>` + bottomNav();
+  // directional slide for real tab navigation; plain fade for an in-place refresh
+  const from = NAV_ORDER.indexOf(_prevRoute), to = NAV_ORDER.indexOf(route);
+  const mainCls = from >= 0 && to >= 0 && from !== to ? (to > from ? "slide-fwd" : "slide-back") : "fade";
+  app.innerHTML = topbar() + `<main class="${mainCls}">${screen}</main>` + bottomNav();
+  _prevRoute = route;
+  postRender();
+}
+
+// runs after every render(): position segmented-control thumbs, roll changed counts
+function postRender() {
+  layoutSegThumbs();
+  updateCounts();
+}
+
+/* --- segmented control: slide one thumb between button slots, FLIP across re-renders --- */
+const _segPos = {};
+function layoutSegThumbs() {
+  document.querySelectorAll(".seg[data-seg]").forEach(seg => {
+    const key = seg.dataset.seg;
+    const thumb = seg.querySelector(".seg-thumb");
+    const on = seg.querySelector("button.on");
+    if (!thumb) return;
+    if (!on) { thumb.style.opacity = "0"; return; }
+    thumb.style.opacity = "1";
+    const next = { x: on.offsetLeft, w: on.offsetWidth };
+    const prev = _segPos[key];
+    const put = p => { thumb.style.transform = `translateX(${p.x}px)`; thumb.style.width = `${p.w}px`; };
+    if (prev && (prev.x !== next.x || prev.w !== next.w) && !prefersReducedMotion()) {
+      thumb.style.transition = "none";
+      put(prev);
+      void thumb.offsetWidth;                 // reflow so the next change animates
+      thumb.style.transition = "";
+      requestAnimationFrame(() => put(next));
+    } else {
+      put(next);
+    }
+    _segPos[key] = next;
+  });
+}
+
+/* --- roll a metric to its new value instead of snapping (§9) --- */
+const _countCache = {};
+function animateCount(el, to, from) {
+  if (from === to) { el.textContent = to; return; }
+  const dur = 480, t0 = performance.now();
+  const step = now => {
+    const p = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (to - from) * e);
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function updateCounts() {
+  const reduce = prefersReducedMotion();
+  document.querySelectorAll("[data-count]").forEach(el => {
+    const key = el.dataset.count, to = Number(el.textContent) || 0, from = _countCache[key];
+    if (!reduce && Number.isFinite(from) && from !== to) animateCount(el, to, from);
+    _countCache[key] = to;
+  });
 }
 
 function themeIcon() {
@@ -683,14 +823,15 @@ function topbar() {
 }
 
 function bottomNav() {
-  const item = (r, label, icon) =>
-    `<a href="#" data-action="nav" data-route="${r}" class="${route === r ? "on" : ""}">${icon}<span>${label}</span></a>`;
+  const item = (r, label, icon, iconF) =>
+    `<a href="#" data-action="nav" data-route="${r}" class="${route === r ? "on" : ""}">
+      <span class="nav-ic">${icon}${iconF}</span><span>${label}</span></a>`;
   return `<nav class="nav"><div class="nav-inner">
-    ${item("checkinout", "Check in/out", I.cal)}
-    ${item("apartments", "Apartments", I.grid)}
-    ${item("schedule", "Schedule", I.table)}
-    ${item("allbookings", "Bookings", I.list)}
-    ${isAdmin() ? item("users", "Users", I.user) : ""}
+    ${item("checkinout", "Check in/out", I.cal, I.calF)}
+    ${item("apartments", "Apartments", I.grid, I.gridF)}
+    ${item("schedule", "Schedule", I.table, I.tableF)}
+    ${item("allbookings", "Bookings", I.list, I.listF)}
+    ${isAdmin() ? item("users", "Users", I.user, I.userF) : ""}
   </div></nav>`;
 }
 
@@ -717,8 +858,8 @@ function screenCheckInOut() {
   const outs = db.bookings.filter(b => b.departure_date === selectedDate && aptById(b.apartmentId)?.zone === activeZone);
 
   const list = (arr, kind) => arr.length
-    ? arr.map(b => bookingCard(b, kind)).join("")
-    : `<div class="empty">No ${kind === "in" ? "check-ins" : "check-outs"} on this day.</div>`;
+    ? arr.map((b, i) => bookingCard(b, kind, i)).join("")
+    : empty(`No ${kind === "in" ? "check-ins" : "check-outs"} on this day.`, I.cal);
 
   return `<div class="screen">
     <div class="between">
@@ -726,10 +867,10 @@ function screenCheckInOut() {
       ${isAdmin() ? `<button class="iconbtn" data-action="add-booking" aria-label="Add booking">${I.plus}</button>` : ""}
     </div>
 
-    <div class="seg" style="margin-top:14px">${zoneTabs}</div>
+    <div class="seg" data-seg="zone" style="margin-top:14px"><i class="seg-thumb"></i>${zoneTabs}</div>
 
     <div style="margin-top:14px">
-      <div class="seg">${seg}</div>
+      <div class="seg" data-seg="reldate"><i class="seg-thumb"></i>${seg}</div>
       <div class="datestep">
         <button class="step" data-action="stepdate" data-step="-1" aria-label="Previous day">${I.left}</button>
         <input type="date" value="${selectedDate}" data-action="pickdate" aria-label="Pick date">
@@ -737,15 +878,15 @@ function screenCheckInOut() {
       </div>
     </div>
 
-    <div class="section-head"><h3>Check-ins</h3><span class="count">${ins.length}</span></div>
-    <div class="cardgrid">${list(ins, "in")}</div>
+    <div class="section-head"><h3>Check-ins</h3><span class="count" data-count="cio-in">${ins.length}</span></div>
+    <div class="cardgrid stagger">${list(ins, "in")}</div>
 
-    <div class="section-head"><h3>Check-outs</h3><span class="count">${outs.length}</span></div>
-    <div class="cardgrid">${list(outs, "out")}</div>
+    <div class="section-head"><h3>Check-outs</h3><span class="count" data-count="cio-out">${outs.length}</span></div>
+    <div class="cardgrid stagger">${list(outs, "out")}</div>
   </div>`;
 }
 
-function bookingCard(b, kind) {
+function bookingCard(b, kind, i = 0) {
   const apt = aptById(b.apartmentId) || {};
   const nights = nightsBetween(b.arrival_date, b.departure_date);
   const tax = touristTax(b.tax_paying_guest_count, nights);
@@ -788,11 +929,11 @@ function bookingCard(b, kind) {
   if (isAdmin() && !terminated && (kind === "in" ? !b.arrived : !b.departed))
     actionBtns += `<button class="btn btn-red" style="margin-top:8px" data-action="terminate-booking" data-id="${b.id}">Terminate</button>`;
 
-  return `<div class="card" data-booking="${b.id}">
+  return `<div class="card" data-booking="${b.id}" style="--i:${i}">
     <div class="between">
       <div>
-        <div style="font-weight:700;font-size:17px;letter-spacing:-.015em">${esc(b.guest_name)}</div>
-        <div class="dim" style="font-size:13px;margin-top:1px">${esc(apt.name || "—")} · ${src}</div>
+        <div style="font-weight:700;font-size:var(--fs-headline);letter-spacing:-.015em">${esc(b.guest_name)}</div>
+        <div class="sub" style="font-size:13px;margin-top:1px">${esc(apt.name || "—")} · ${src}</div>
       </div>
       ${statusCol}
     </div>
@@ -854,15 +995,20 @@ function bookingCard(b, kind) {
 
 // plain zone tabs, shared by Apartments + All Bookings (Check in/out has its own richer variant)
 function plainZoneTabs() {
-  return `<div class="seg" style="margin-top:14px">${[1, 2, 3].map(z =>
+  return `<div class="seg" data-seg="zone" style="margin-top:14px"><i class="seg-thumb"></i>${[1, 2, 3].map(z =>
     `<button data-action="zone" data-zone="${z}" class="${activeZone === z ? "on" : ""}">Zone ${z}</button>`).join("")}</div>`;
 }
 
+// list-row status: coloured dot is already present, so the label is just coloured text (no filled pill)
+const STATUS_COLOR = { occupied: "green", ready: "orange", cleaning: "blue", terminated: "red", current: "green", upcoming: "blue", past: "dim" };
+const statusText = s =>
+  `<span style="font-weight:600;text-transform:capitalize;color:var(--${STATUS_COLOR[s] || "dim"})">${esc(s || "—")}</span>`;
+
 function screenApartments() {
   const apts = db.apartments.filter(a => a.zone === activeZone);
-  const cards = apts.length
-    ? apts.map(apartmentCard).join("")
-    : `<div class="empty">No apartments in Zone ${activeZone}.</div>`;
+  const body = apts.length
+    ? `<div class="group stagger" style="margin-top:14px">${apts.map((a, i) => apartmentCard(a, i)).join("")}</div>`
+    : empty(`No apartments in Zone ${activeZone}.`, I.grid, "margin-top:14px");
 
   return `<div class="screen">
     <div class="between">
@@ -870,11 +1016,11 @@ function screenApartments() {
       ${isAdmin() ? `<button class="iconbtn" data-action="add-apartment" aria-label="Add apartment">${I.plus}</button>` : ""}
     </div>
     ${plainZoneTabs()}
-    <div class="stack" style="margin-top:14px">${cards}</div>
+    ${body}
   </div>`;
 }
 
-function apartmentCard(a) {
+function apartmentCard(a, i = 0) {
   const open = openApts.has(a.id);
   const b = currentBooking(a.id);
   let detail;
@@ -892,14 +1038,14 @@ function apartmentCard(a) {
         <textarea rows="2" data-field="notes" data-id="${b.id}" placeholder="Notes about the guests…">${esc(b.notes)}</textarea>
       </div>`;
   } else {
-    detail = `<div class="empty" style="padding:14px 0">No current or upcoming reservation.</div>`;
+    detail = empty("No current or upcoming reservation.", I.cal, "padding:16px 0");
   }
 
   const statusControl = isAdmin()
     ? `<select data-field="apt-status" data-id="${a.id}" aria-label="Apartment status">
          ${["occupied", "ready", "cleaning"].map(s => `<option value="${s}" ${a.status === s ? "selected" : ""}>${s}</option>`).join("")}
        </select>`
-    : `<span class="pill s-${a.status}">${a.status}</span>`;
+    : statusText(a.status);
 
   const adminCtl = isAdmin()
     ? `<button class="ico" style="width:34px;height:34px" data-action="edit-apartment" data-id="${a.id}" aria-label="Edit ${esc(a.name)}">${I.edit}</button>
@@ -919,16 +1065,16 @@ function apartmentCard(a) {
        </div>`
     : "";
 
-  return `<div class="card apt ${open ? "open" : ""}" data-action="toggle-apt" data-id="${a.id}">
+  return `<div class="apt ${open ? "open" : ""}" data-action="toggle-apt" data-id="${a.id}" style="--i:${i}">
     <div class="between">
       <div class="row">
         <span class="dot d-${a.status}"></span>
         <div>
-          <div style="font-weight:700;letter-spacing:-.01em">${esc(a.name)}</div>
-          <div class="dim" style="font-size:12px">${esc(a.address)} · max ${a.max_guests} · ${eur0(a.deposit_per_person)}/pax</div>
+          <div style="font-weight:600;letter-spacing:-.01em">${esc(a.name)}</div>
+          <div class="sub" style="font-size:12px">${esc(a.address)} · max ${a.max_guests} · ${eur0(a.deposit_per_person)}/pax</div>
         </div>
       </div>
-      <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:flex-end">${adminCtl}${statusControl}${I.chev}</div>
+      <div class="apt-ctl">${adminCtl}${statusControl}${I.chev}</div>
     </div>
     ${cleanUndo}
     ${cleanBtn}
@@ -940,33 +1086,33 @@ function apartmentCard(a) {
 
 function screenAllBookings() {
   const apts = db.apartments.filter(a => a.zone === activeZone);
-  const cards = apts.length
-    ? apts.map(allBookingsCard).join("")
-    : `<div class="empty">No apartments in Zone ${activeZone}.</div>`;
+  const body = apts.length
+    ? `<div class="group stagger" style="margin-top:14px">${apts.map((a, i) => allBookingsCard(a, i)).join("")}</div>`
+    : empty(`No apartments in Zone ${activeZone}.`, I.grid, "margin-top:14px");
 
   return `<div class="screen">
     <div class="between"><h2>All Bookings</h2></div>
     ${plainZoneTabs()}
-    <div class="stack" style="margin-top:14px">${cards}</div>
+    ${body}
   </div>`;
 }
 
-function allBookingsCard(a) {
+function allBookingsCard(a, i = 0) {
   const open = openHistory.has(a.id);
   const list = db.bookings
     .filter(b => b.apartmentId === a.id)
     .sort((x, y) => (x.arrival_date < y.arrival_date ? 1 : x.arrival_date > y.arrival_date ? -1 : 0));
   const inner = list.length
     ? list.map(historyRow).join("")
-    : `<div class="empty" style="padding:14px 0">No bookings for this apartment yet.</div>`;
+    : empty("No bookings for this apartment yet.", I.list, "padding:16px 0");
 
-  return `<div class="card apt ${open ? "open" : ""}" data-action="toggle-history" data-id="${a.id}">
+  return `<div class="apt ${open ? "open" : ""}" data-action="toggle-history" data-id="${a.id}" style="--i:${i}">
     <div class="between">
       <div class="row">
         <span class="dot d-${a.status}"></span>
         <div>
-          <div style="font-weight:700;letter-spacing:-.01em">${esc(a.name)}</div>
-          <div class="dim" style="font-size:12px">${esc(a.address)}</div>
+          <div style="font-weight:600;letter-spacing:-.01em">${esc(a.name)}</div>
+          <div class="sub" style="font-size:12px">${esc(a.address)}</div>
         </div>
       </div>
       <div class="row" style="gap:8px">
@@ -1029,7 +1175,7 @@ function screenSchedule() {
     </div>
 
     <div style="margin-top:14px">
-      <div class="seg"><button data-action="sched-thisweek" class="${isThisWeek ? "on" : ""}">This week</button></div>
+      <div class="seg" data-seg="schedweek"><i class="seg-thumb"></i><button data-action="sched-thisweek" class="${isThisWeek ? "on" : ""}">This week</button></div>
       <div class="datestep">
         <button class="step" data-action="sched-stepweek" data-step="-1" aria-label="Previous week">${I.left}</button>
         <div style="flex:1;text-align:center;font-weight:600">${weekRangeLabel(scheduleWeekStart)}</div>
@@ -1174,13 +1320,14 @@ function toastWithUndo(msg, targetKind, id) {
       if (apt && aptCleanUndoable(apt)) revertAptClean(apt);
     }
     saveDB(db); render();
-  });
+  }, true);   // success toast — show the draw-in checkmark
 }
-function showToast(msg, undoFn) {
+function showToast(msg, undoFn, withCheck) {
   const host = $("#toast");
   if (!host) return;
   _toastUndo = undoFn || null;
-  host.innerHTML = `<div class="toast fade">
+  host.innerHTML = `<div class="toast">
+    ${withCheck ? `<span class="toast-check">${I.check}</span>` : ""}
     <span>${esc(msg)}</span>
     ${undoFn ? `<button class="toast-undo" data-action="toast-undo">Undo</button>` : ""}
   </div>`;
@@ -1676,6 +1823,7 @@ dlg.addEventListener("close", () => {
 
 function dialogShell(kind, title, body, { id, menu } = {}) {
   dlg.innerHTML = `<form method="dialog" class="dform" data-form="${kind}"${id ? ` data-id="${esc(id)}"` : ""}>
+    <div class="sheet-grip" aria-hidden="true"></div>
     <h3>${title}</h3>
     ${body}
     <menu>${menu || `
@@ -1782,7 +1930,7 @@ function openBookingDialog() {
     </div>
     <label class="f">Guest name<input name="guest_name" required></label>
     <label class="f">Guest phone<input name="guest_phone" placeholder="+385 91 234 5678" inputmode="tel"></label>
-    <label class="f">Booking source
+    <label class="f-row"><span>Booking source</span>
       <select name="booking_source"><option>Airbnb</option><option>Booking.com</option><option>Agency</option></select></label>
     <label class="f" data-agency hidden>Agency name<input name="agency_name"></label>
     <div class="row2">
@@ -1817,7 +1965,7 @@ function openApartmentDialog(aptId) {
       <label class="f">Max guests<input type="number" name="max_guests" min="1" value="${a ? a.max_guests : 4}" inputmode="numeric"></label>
       <label class="f">Deposit / person (€)<input type="number" name="deposit_per_person" min="0" value="${a ? a.deposit_per_person : 15}" inputmode="numeric"></label>
     </div>
-    <label class="f">Status<select name="status">${statusOpts}</select></label>
+    <label class="f-row"><span>Status</span><select name="status">${statusOpts}</select></label>
     <div class="err dim" style="color:var(--orange);margin-top:10px;min-height:16px"></div>
   `, a ? { id: aptId } : {});
   initAddressAutocomplete();
