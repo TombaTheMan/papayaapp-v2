@@ -71,9 +71,12 @@
   --aurora-2:color-mix(in srgb,#ff6fd8 20%,transparent);
   --aurora-3:color-mix(in srgb,var(--blue) 20%,transparent);
 }
+/* reserve the scrollbar's width up front so its appearance/disappearance between a short
+   screen and a scrolling one never shifts the topbar/nav/content sideways */
+html{overflow-y:scroll;scrollbar-gutter:stable}
 html,body{background:var(--bg);color:var(--text)}
 body{font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;position:relative}
-/* --- aurora mesh: soft purple glow fixed behind everything, shows through the blurred chrome --- */
+/* --- aurora mesh: soft purple glow fixed behind everything --- */
 body::before{
   content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
   background:
@@ -83,6 +86,9 @@ body::before{
   animation:aurora-drift 26s ease-in-out infinite alternate;
   will-change:transform;
 }
+/* pause every infinite animation while the tab isn't visible (see the visibilitychange
+   listener near the bottom of <script>) — zero cost for ambient motion nobody can see */
+body.tab-hidden, body.tab-hidden *{animation-play-state:paused !important}
 @keyframes aurora-drift{
   0%{transform:translate3d(0,0,0) scale(1)}
   100%{transform:translate3d(-2%,2%,0) scale(1.06)}
@@ -97,13 +103,12 @@ button{font:inherit;cursor:pointer}
 a{color:var(--accent);text-decoration:none}
 
 /* --- chrome --- */
+/* a plain, slightly-transparent solid fill reads as "floating chrome" without backdrop-filter's
+   compositing cost (blur is one of the most expensive CSS properties in common use, and it
+   re-costs on every paint, not just during motion) */
 .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;
-  gap:12px;padding:14px 18px;background:var(--bg);border-bottom:1px solid var(--border);
-  view-transition-name:app-topbar;contain:layout}
-@supports (backdrop-filter:blur(1px)){
-  .topbar{background:color-mix(in srgb,var(--bg) 72%,transparent);backdrop-filter:blur(20px) saturate(160%);
-    border-bottom-color:color-mix(in srgb,var(--border) 55%,transparent)}
-}
+  gap:12px;padding:14px 18px;background:color-mix(in srgb,var(--bg) 92%,transparent);
+  border-bottom:1px solid var(--border);contain:layout}
 .brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:-.02em}
 /* the logo carries its own dark wordmark, so a small light "safe area" chip keeps it
    legible in dark mode too, instead of dark-on-dark */
@@ -135,12 +140,8 @@ a{color:var(--accent);text-decoration:none}
 @media (hover:hover){.iconbtn:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--border));box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 18%,transparent);transform:translateY(-1px)}}
 
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;
-  padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--border);
-  view-transition-name:app-nav;contain:layout}
-@supports (backdrop-filter:blur(1px)){
-  .nav{background:color-mix(in srgb,var(--bg) 72%,transparent);backdrop-filter:blur(20px) saturate(160%);
-    border-top-color:color-mix(in srgb,var(--border) 55%,transparent)}
-}
+  padding:8px 12px calc(8px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb,var(--bg) 92%,transparent);border-top:1px solid var(--border);contain:layout}
 .nav-inner{width:100%;max-width:480px;display:flex;gap:6px;position:relative}
 /* sliding gradient "pill" behind the active tab — mirrors the segmented-control thumb (see layoutNavThumb) */
 .nav-thumb{position:absolute;top:0;left:0;width:0;height:100%;border-radius:12px;z-index:0;opacity:0;
@@ -152,7 +153,7 @@ a{color:var(--accent);text-decoration:none}
 .nav a.on{color:var(--accent)}
 
 /* --- layout --- */
-main{display:block;view-transition-name:app-main}
+main{display:block}
 .screen{padding:16px 16px 8px}
 .stack{display:flex;flex-direction:column;gap:14px}
 .row{display:flex;gap:10px;align-items:center}
@@ -207,12 +208,17 @@ main{display:block;view-transition-name:app-main}
    load or slow connection sees a shimmering placeholder instead of a blank white flash --- */
 .skel-topbar{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border)}
 .skel-body{padding:16px}
-.skel{display:inline-block;background:linear-gradient(100deg,var(--surface) 25%,var(--surface-2) 45%,var(--surface) 65%);
-  background-size:200% 100%;animation:skel-shimmer 1.5s ease-in-out infinite;border-radius:8px}
+/* animating background-position repaints every frame; a translateX-swept pseudo-element
+   over a static base color is compositor-only instead */
+.skel{display:inline-block;position:relative;overflow:hidden;background:var(--surface);border-radius:8px}
+.skel::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 30%,color-mix(in srgb,var(--surface-2) 85%,transparent) 50%,transparent 70%);
+  transform:translateX(-100%);animation:skel-shimmer 1.5s ease-in-out infinite}
 .skel-mark{width:26px;height:26px;border-radius:8px;flex:none}
 .skel-line{border-radius:999px}
 .skel-card{display:block;height:118px;border-radius:18px;margin-top:12px}
-@keyframes skel-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@keyframes skel-shimmer{to{transform:translateX(100%)}}
 
 /* apartment name on a booking card — bold + coloured so it reads before the fine print does */
 .apt-name{font-weight:800;font-size:14.5px;letter-spacing:-.012em;color:var(--accent);margin-top:2px}
@@ -352,7 +358,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid transparent;outline-of
 dialog{border:0;border-radius:var(--r-lg) var(--r-lg) 0 0;padding:18px 18px calc(20px + env(safe-area-inset-bottom));
   width:100%;max-width:480px;margin:auto auto 0;background:var(--card);color:var(--text);box-shadow:var(--shadow);
   max-height:calc(100dvh - 20px);overflow-y:auto}
-dialog::backdrop{background:rgba(8,6,20,.38);backdrop-filter:blur(8px) saturate(120%)}
+dialog::backdrop{background:rgba(8,6,20,.5)}
 @media (min-width:520px){dialog{border-radius:var(--r-lg);margin:auto;max-width:520px;padding-top:22px}}
 dialog[open]{animation:dlgpop .38s var(--ease-pop)}
 dialog[open]::backdrop{animation:fade .24s var(--ease)}
@@ -432,19 +438,6 @@ gmp-place-autocomplete{display:block;width:100%;font:inherit;
 /* cascade rows only on a real tab change — never on an in-place render() (zone/date/status edit) */
 .slide-fwd .stagger > *,.slide-back .stagger > *{animation:rowin .32s var(--ease) both;animation-delay:calc(var(--i,0) * 22ms)}
 
-/* View Transitions API cross-fade (tab switches, theme toggle) — see viewTransition().
-   Only the main content area gets a real crossfade; the topbar and sidebar/tab-bar are
-   pinned to their own named groups with animation disabled so they never resize or
-   flicker when a new screen is a different height (was the "expanding logo" bug). */
-::view-transition-group(app-topbar),
-::view-transition-group(app-nav){ animation:none; }
-::view-transition-old(app-topbar), ::view-transition-new(app-topbar),
-::view-transition-old(app-nav), ::view-transition-new(app-nav){ animation:none; opacity:1; mix-blend-mode:normal; }
-::view-transition-old(app-main){animation:vt-out .22s var(--ease) both}
-::view-transition-new(app-main){animation:vt-in .24s var(--ease) both}
-::view-transition-old(root),::view-transition-new(root){animation-duration:0s}
-@keyframes vt-out{to{opacity:0;transform:translateY(-4px) scale(.99)}}
-@keyframes vt-in{from{opacity:0;transform:translateY(4px) scale(1.008)}}
 
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms !important;animation-duration:.01ms !important}
@@ -478,16 +471,20 @@ gmp-place-autocomplete{display:block;width:100%;font:inherit;
    instead of a flat outline: green for the worker's own zone, amber for the others. --- */
 .seg button.zone-mine{color:var(--green);font-weight:700;
   background:linear-gradient(160deg,color-mix(in srgb,var(--green) 22%,transparent),color-mix(in srgb,var(--green) 5%,transparent));
-  animation:zone-glow-g 2.8s ease-in-out infinite}
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--green) 45%,transparent),0 0 10px -2px color-mix(in srgb,var(--green) 40%,transparent)}
+/* animating box-shadow directly repaints the element every frame for as long as the
+   animation runs; instead the "bright" box-shadow state sits pre-painted on a pseudo-element
+   and only its opacity animates (compositor-only, no repaint) over the static dim shadow above */
+.seg button.zone-mine::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--green) 70%,transparent),0 0 18px -1px color-mix(in srgb,var(--green) 65%,transparent);
+  opacity:0;animation:zone-glow-g 2.8s ease-in-out infinite}
 .seg button.zone-other{color:var(--orange);
   background:linear-gradient(160deg,color-mix(in srgb,var(--orange) 18%,transparent),color-mix(in srgb,var(--orange) 4%,transparent));
   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--orange) 40%,transparent),0 0 12px -3px color-mix(in srgb,var(--orange) 45%,transparent)}
 .seg button.zone-mine.on{color:var(--green)}
 .seg button.zone-other.on{color:var(--orange)}
-@keyframes zone-glow-g{
-  0%,100%{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--green) 45%,transparent),0 0 10px -2px color-mix(in srgb,var(--green) 40%,transparent)}
-  50%{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--green) 70%,transparent),0 0 18px -1px color-mix(in srgb,var(--green) 65%,transparent)}
-}
+@keyframes zone-glow-g{0%,100%{opacity:0}50%{opacity:1}}
 
 /* --- schedule table: colourful, cell-based grid --- */
 .sched-wrap{overflow-x:auto}
@@ -647,6 +644,13 @@ const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// used to debounce live-filter search fields — rebuilding a results list on every keystroke
+// is wasted work once the underlying dataset (apartments, bookings) is more than trivial
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
 const pad = n => String(n).padStart(2, "0");
 const fmtISO = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const todayStr = () => fmtISO(new Date());
@@ -805,6 +809,10 @@ function saveAccounts(list) {
 if (location.search.includes("reset")) {
   try { localStorage.removeItem(DB_KEY); localStorage.removeItem(ACCOUNTS_KEY); } catch (e) {}
 }
+// append ?perf to log render() timing to the console — gated off by default so it doesn't
+// spam normal use; kept in place (rather than deleted after verifying) so future timing
+// regressions are easy to catch again without re-adding instrumentation from scratch
+const DEBUG_PERF = location.search.includes("perf");
 
 let db = loadDB();
 let ACCOUNTS = loadAccounts();
@@ -836,14 +844,22 @@ function workerZone(username) {
   return [1, 2, 3].find(z => week.zones[z].some(r => r.username === username)) || null;
 }
 
-function currentBooking(aptId) {
-  const list = db.bookings
-    .filter(b => b.apartmentId === aptId && !b.departed && b.status !== "terminated")
-    .sort((a, b) => a.arrival_date < b.arrival_date ? -1 : 1);
+// current-or-next booking per apartment, computed once per apartments-list render instead
+// of re-scanning every booking inside every apartment card (was O(apartments x bookings))
+function currentBookingsByApt() {
+  const byApt = new Map();
+  for (const b of db.bookings) {
+    if (b.departed || b.status === "terminated") continue;
+    if (!byApt.has(b.apartmentId)) byApt.set(b.apartmentId, []);
+    byApt.get(b.apartmentId).push(b);
+  }
   const t = todayStr();
-  return list.find(b => b.arrival_date <= t && b.departure_date >= t)
-      || list.find(b => b.arrival_date > t)
-      || null;
+  const result = new Map();
+  for (const [aptId, list] of byApt) {
+    list.sort((x, y) => x.arrival_date < y.arrival_date ? -1 : 1);
+    result.set(aptId, list.find(x => x.arrival_date <= t && x.departure_date >= t) || list.find(x => x.arrival_date > t) || null);
+  }
+  return result;
 }
 
 // read-only lifecycle tag for the All Bookings history view — derived, never stored
@@ -923,20 +939,6 @@ const app = $("#app");
 const dlg = $("#dlg");
 const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion:reduce)").matches;
 
-// smooth cross-fade between tab / theme changes via the View Transitions API, when the
-// browser supports it and the person hasn't asked for reduced motion; falls back to a
-// plain synchronous update everywhere else — nothing about the app depends on this running.
-function viewTransition(update) {
-  if (!document.startViewTransition || prefersReducedMotion()) { update(); return; }
-  const t = document.startViewTransition(() => update());
-  // a fast second tap starts a new transition before the last one finished — the browser
-  // skips the old one and rejects its ready/finished promises with InvalidStateError; the
-  // update callback above still ran synchronously either way, so there's nothing to recover,
-  // just nothing to report as an uncaught rejection either
-  t.ready.catch(() => {});
-  t.finished.catch(() => {});
-}
-
 // empty state: large low-opacity icon above the message (§8)
 const empty = (msg, icon, style = "") =>
   `<div class="empty"${style ? ` style="${style}"` : ""}>${icon ? `<span class="empty-ic">${icon}</span>` : ""}<span>${esc(msg)}</span></div>`;
@@ -982,25 +984,24 @@ let _prevRoute = route;
 // mount only happens when #app has no <main> yet: first boot, or right after login (the
 // login screen replaced the whole #app tree, so the chrome nodes don't exist to patch).
 function render() {
-  if (!session) { renderLogin(); _prevRoute = null; _segPos = {}; return; }
+  const _t0 = DEBUG_PERF ? performance.now() : 0;
+  if (!session) {
+    renderLogin(); _prevRoute = null; _segPos = {};
+    if (DEBUG_PERF) console.log(`render() ${(performance.now() - _t0).toFixed(1)}ms [login]`);
+    return;
+  }
   const screen = route === "apartments" ? screenApartments()
     : route === "schedule" ? screenSchedule()
     : route === "allbookings" ? screenAllBookings()
     : route === "users" ? screenUsers()
     : screenCheckInOut();
-  // directional slide for real tab navigation; plain fade for an in-place refresh.
-  // A route change is always the callback of a viewTransition() call (see the "nav" case
-  // below) — when the browser actually runs that as a native transition, its own crossfade
-  // already provides the "new screen arrived" cue. Also playing our own slide-fwd/slide-back
-  // (plus the up-to-~650ms .stagger cascade it triggers on the children) *underneath* that
-  // ~230ms native crossfade means content is still visibly sliding/fading in well after the
-  // crossfade looks finished — that mismatch is what reads as lag. So: skip our own class
-  // when the native transition will actually run, and keep it as the fallback everywhere
-  // that transition doesn't exist (unsupported browser, reduced motion).
+  // directional slide for real tab navigation; plain fade for an in-place refresh. Plain CSS
+  // class animation only — no View Transitions API here (it screenshots the whole page and
+  // cross-fades before/after on every single click, real synchronous compositing work that
+  // doesn't show up in JS timing; a transform/opacity class toggle costs far less).
   const from = NAV_ORDER.indexOf(_prevRoute), to = NAV_ORDER.indexOf(route);
   const routeChanged = from >= 0 && to >= 0 && from !== to;
-  const nativeTransitionActive = routeChanged && !!document.startViewTransition && !prefersReducedMotion();
-  const mainCls = !routeChanged ? "fade" : nativeTransitionActive ? "" : (to > from ? "slide-fwd" : "slide-back");
+  const mainCls = routeChanged ? (to > from ? "slide-fwd" : "slide-back") : "fade";
   const existingMain = app.querySelector("main");
   if (!existingMain) {
     app.innerHTML = topbar() + `<main class="${mainCls}">${screen}</main>` + bottomNav();
@@ -1013,6 +1014,7 @@ function render() {
   }
   _prevRoute = route;
   postRender(routeChanged || !existingMain);
+  if (DEBUG_PERF) console.log(`render() ${(performance.now() - _t0).toFixed(1)}ms → ${route}`);
 }
 
 // patches the persistent topbar/bottom-nav DOM instead of recreating it — only
@@ -1043,13 +1045,10 @@ function postRender(routeChanged) {
 /* --- bottom tab bar / desktop sidebar: one sliding gradient thumb.
    Works for both orientations — it reads the active link's own box, so a row (mobile) or a
    column (desktop sidebar) both "just work". --- */
-// Nav clicks run inside viewTransition(), which snapshots the "after" DOM synchronously,
-// one tick before any requestAnimationFrame callback gets to run. A prev-paint→rAF→next-paint
-// echo (the technique layoutSegThumbs still needs, since ITS thumb node is recreated every
-// render) would freeze the transition's snapshot at the "prev" paint, then visibly snap once
-// the transition ends — that's the glitch. The nav's thumb node persists across renders now
-// (see render()), so a single synchronous write is enough: the CSS transition already on
-// .nav-thumb animates from whatever position is actually on screen, no echo needed.
+// The nav's thumb node persists across renders (see render()), so a single synchronous
+// write is enough: the CSS transition already on .nav-thumb animates from whatever position
+// is actually on screen. No prev-paint→rAF→next-paint echo needed here (unlike
+// layoutSegThumbs, whose thumb node IS recreated every render).
 function layoutNavThumb() {
   const inner = document.querySelector(".nav-inner");
   const thumb = inner && inner.querySelector(".nav-thumb");
@@ -1088,28 +1087,30 @@ addEventListener("scroll", onScroll, { passive: true });
    FLIP outright (routeChanged) and just snap: these are freshly-mounted nodes, not the same
    control moving, so there's nothing legitimate to animate from. --- */
 let _segPos = {};
+// Reads (offsetLeft/offsetWidth) and writes are batched into separate passes below, so a
+// screen with multiple segmented controls forces at most one shared reflow total instead of
+// one read-write-read cycle per control (classic layout-thrashing shape otherwise).
 function layoutSegThumbs(routeChanged) {
-  document.querySelectorAll(".seg[data-seg]").forEach(seg => {
+  const put = (thumb, p) => { thumb.style.transform = `translateX(${p.x}px)`; thumb.style.width = `${p.w}px`; };
+  const jobs = [];
+  document.querySelectorAll(".seg[data-seg]").forEach(seg => {           // READ phase
     const key = `${route}:${seg.dataset.seg}`;
     const thumb = seg.querySelector(".seg-thumb");
     const on = seg.querySelector("button.on");
     if (!thumb) return;
     if (!on) { thumb.style.opacity = "0"; delete _segPos[key]; return; }
     thumb.style.opacity = "1";
-    const next = { x: on.offsetLeft, w: on.offsetWidth };
-    const prev = routeChanged ? null : _segPos[key];
-    const put = p => { thumb.style.transform = `translateX(${p.x}px)`; thumb.style.width = `${p.w}px`; };
-    if (prev && (prev.x !== next.x || prev.w !== next.w) && !prefersReducedMotion()) {
-      thumb.style.transition = "none";
-      put(prev);
-      void thumb.offsetWidth;                 // reflow so the next change animates
-      thumb.style.transition = "";
-      requestAnimationFrame(() => put(next));
-    } else {
-      put(next);
-    }
-    _segPos[key] = next;
+    jobs.push({ key, thumb, next: { x: on.offsetLeft, w: on.offsetWidth }, prev: routeChanged ? null : _segPos[key] });
   });
+  const animating = jobs.filter(j => j.prev && (j.prev.x !== j.next.x || j.prev.w !== j.next.w) && !prefersReducedMotion());
+  jobs.filter(j => !animating.includes(j)).forEach(j => put(j.thumb, j.next));   // WRITE: snap the rest
+  if (animating.length) {
+    animating.forEach(j => { j.thumb.style.transition = "none"; put(j.thumb, j.prev); });
+    void document.body.offsetWidth;                  // one shared reflow covers every thumb above
+    animating.forEach(j => { j.thumb.style.transition = ""; });
+    requestAnimationFrame(() => animating.forEach(j => put(j.thumb, j.next)));
+  }
+  jobs.forEach(j => { _segPos[j.key] = j.next; });
   // drop cached positions for controls that just went off-screen, so nothing stale is read later
   if (routeChanged) for (const k in _segPos) if (!k.startsWith(route + ":")) delete _segPos[k];
 }
@@ -1203,8 +1204,10 @@ function screenCheckInOut() {
     return `<button data-action="zone" data-zone="${z}" class="${cls}">Zone ${z}</button>`;
   }).join("");
 
-  const ins  = db.bookings.filter(b => b.arrival_date === selectedDate && aptById(b.apartmentId)?.zone === activeZone);
-  const outs = db.bookings.filter(b => b.departure_date === selectedDate && aptById(b.apartmentId)?.zone === activeZone);
+  // O(1) per booking instead of aptById's linear scan repeated once per booking below
+  const aptZoneById = new Map(db.apartments.map(a => [a.id, a.zone]));
+  const ins  = db.bookings.filter(b => b.arrival_date === selectedDate && aptZoneById.get(b.apartmentId) === activeZone);
+  const outs = db.bookings.filter(b => b.departure_date === selectedDate && aptZoneById.get(b.apartmentId) === activeZone);
 
   const list = (arr, kind) => arr.length
     ? arr.map((b, i) => bookingCard(b, kind, i)).join("")
@@ -1369,20 +1372,36 @@ function apartmentsBody(zone, query) {
   const q = query.trim().toLowerCase();
   const apts = db.apartments.filter(a => a.zone === zone &&
     (!q || a.name.toLowerCase().includes(q) || (a.address || "").toLowerCase().includes(q)));
+  const bookingByApt = currentBookingsByApt();
   return apts.length
-    ? `<div class="group stagger" style="margin-top:14px">${apts.map((a, i) => apartmentCard(a, i)).join("")}</div>`
+    ? `<div class="group stagger" style="margin-top:14px">${apts.map((a, i) => apartmentCard(a, i, bookingByApt.get(a.id) || null)).join("")}</div>`
     : empty(q ? `No apartments match "${query}".` : `No apartments in Zone ${zone}.`, I.grid, "margin-top:14px");
+}
+
+// all bookings grouped by apartment (newest-arrival-first), computed once per render instead
+// of re-scanning every booking inside every apartment's history card below
+function bookingsByApt() {
+  const byApt = new Map();
+  for (const b of db.bookings) {
+    if (!byApt.has(b.apartmentId)) byApt.set(b.apartmentId, []);
+    byApt.get(b.apartmentId).push(b);
+  }
+  for (const list of byApt.values())
+    list.sort((x, y) => (x.arrival_date < y.arrival_date ? 1 : x.arrival_date > y.arrival_date ? -1 : 0));
+  return byApt;
 }
 
 function bookingsBody(zone, query) {
   const q = query.trim().toLowerCase();
-  const apts = db.apartments.filter(a => a.zone === zone).filter(a => {
-    if (!q) return true;
-    if (a.name.toLowerCase().includes(q)) return true;
-    return db.bookings.some(b => b.apartmentId === a.id && b.guest_name.toLowerCase().includes(q));
-  });
+  // one pass over bookings to build a lookup, instead of an apartments x bookings scan below
+  const aptsWithMatchingGuest = q
+    ? new Set(db.bookings.filter(b => b.guest_name.toLowerCase().includes(q)).map(b => b.apartmentId))
+    : null;
+  const apts = db.apartments.filter(a => a.zone === zone &&
+    (!q || a.name.toLowerCase().includes(q) || aptsWithMatchingGuest.has(a.id)));
+  const byApt = bookingsByApt();
   return apts.length
-    ? `<div class="group stagger" style="margin-top:14px">${apts.map((a, i) => allBookingsCard(a, i)).join("")}</div>`
+    ? `<div class="group stagger" style="margin-top:14px">${apts.map((a, i) => allBookingsCard(a, i, byApt.get(a.id) || [])).join("")}</div>`
     : empty(q ? `No matches for "${query}".` : `No apartments in Zone ${zone}.`, I.grid, "margin-top:14px");
 }
 
@@ -1395,9 +1414,8 @@ function screenApartments() {
   </div>`;
 }
 
-function apartmentCard(a, i = 0) {
+function apartmentCard(a, i = 0, b = null) {
   const open = openApts.has(a.id);
-  const b = currentBooking(a.id);
   let detail;
   if (b) {
     const nights = nightsBetween(b.arrival_date, b.departure_date);
@@ -1468,11 +1486,8 @@ function screenAllBookings() {
   </div>`;
 }
 
-function allBookingsCard(a, i = 0) {
+function allBookingsCard(a, i = 0, list = []) {
   const open = openHistory.has(a.id);
-  const list = db.bookings
-    .filter(b => b.apartmentId === a.id)
-    .sort((x, y) => (x.arrival_date < y.arrival_date ? 1 : x.arrival_date > y.arrival_date ? -1 : 0));
   const inner = list.length
     ? list.map(historyRow).join("")
     : empty("No bookings for this apartment yet.", I.list, "padding:16px 0");
@@ -1839,11 +1854,11 @@ document.addEventListener("click", e => {
       const dest = el.dataset.route;
       if (dest === route) break;
       route = dest;
-      viewTransition(render);
+      render();
       break;
     }
     case "theme":
-      viewTransition(toggleTheme); break;
+      toggleTheme(); break;
     case "logout":
       session = null; route = "checkinout"; try { localStorage.removeItem(SESSION_KEY); } catch (e) {} render(); break;
     case "reldate":
@@ -1997,29 +2012,43 @@ document.addEventListener("input", e => {
     if (pv) pv.textContent = fillTemplate(el.value, templateSample());
   }
   // live filter for the searchable apartment picker
-  if (el.dataset.action === "apt-combo-search") {
-    const combo = el.closest("[data-combo]");
-    combo.querySelector("[data-combo-list]").innerHTML =
-      aptComboListHtml(el.value, combo.querySelector('[name="apartmentId"]').value);
-  }
+  if (el.dataset.action === "apt-combo-search") debouncedComboFilter(el);
   // live filter — Apartments / All Bookings search fields. Patches only the results
   // container (never the field itself), so the input keeps focus and cursor position.
   if (el.dataset.action === "apts-search") {
     searchApts = el.value;
-    const host = $('[data-search-results="apts"]');
-    if (host) host.innerHTML = apartmentsBody(activeZone, searchApts);
+    debouncedAptsFilter();
   }
   if (el.dataset.action === "bookings-search") {
     searchBookings = el.value;
-    const host = $('[data-search-results="bookings"]');
-    if (host) host.innerHTML = bookingsBody(activeZone, searchBookings);
+    debouncedBookingsFilter();
   }
 });
 
-// Enter inside the apartment-search field must pick the top match, not submit the booking form
+// rebuilding a filtered list on every keystroke is wasted work once the dataset grows —
+// ~120ms feels instant to type through but skips rebuilding on every single character
+const debouncedAptsFilter = debounce(() => {
+  const host = $('[data-search-results="apts"]');
+  if (host) host.innerHTML = apartmentsBody(activeZone, searchApts);
+}, 120);
+const debouncedBookingsFilter = debounce(() => {
+  const host = $('[data-search-results="bookings"]');
+  if (host) host.innerHTML = bookingsBody(activeZone, searchBookings);
+}, 120);
+function filterCombo(el) {
+  const combo = el.closest("[data-combo]");
+  if (combo) combo.querySelector("[data-combo-list]").innerHTML =
+    aptComboListHtml(el.value, combo.querySelector('[name="apartmentId"]').value);
+}
+const debouncedComboFilter = debounce(filterCombo, 120);
+
+// Enter inside the apartment-search field must pick the top match, not submit the booking
+// form. Filters synchronously first — the debounced filter above may not have caught up
+// with the last keystroke yet, and picking a stale "first match" would be wrong.
 document.addEventListener("keydown", e => {
   if (e.key !== "Enter" || e.target.dataset.action !== "apt-combo-search") return;
   e.preventDefault();
+  filterCombo(e.target);
   const first = e.target.closest("[data-combo]").querySelector(".combo-opt");
   if (first) first.click();
 });
@@ -2530,6 +2559,12 @@ function toggleTheme() {
     if (saved) document.documentElement.dataset.theme = saved;
   } catch (e) {}
 })();
+
+// pause every infinite CSS animation (aurora drift, zone-mine glow) while the tab is in the
+// background — see the .tab-hidden rule near the top of <style> — zero cost while unseen
+document.addEventListener("visibilitychange", () => {
+  document.body.classList.toggle("tab-hidden", document.hidden);
+});
 
 // use the embedded logo as the browser tab / bookmark favicon too
 (function setFavicon() {
