@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "improve-codebase-architecture": {
+      "source": "mattpocock/ai-engineer-workshop-2026-project",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/improve-codebase-architecture/SKILL.md",
+      "computedHash": "47ba901693bf0c537e80edd39a2e26121f47c8d3d48f3417efa31fb73498be7a"
+    }
+  }
+}
