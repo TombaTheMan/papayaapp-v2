@@ -119,8 +119,12 @@ a{color:var(--accent);text-decoration:none}
    --scroll-p (0..1), a scroll-linked custom property set on :root — see onScroll(). --- */
 .topbar-title{position:absolute;left:50%;top:50%;pointer-events:none;white-space:nowrap;
   font-weight:700;font-size:15px;letter-spacing:-.012em;
+  max-width:calc(100% - 200px);overflow:hidden;text-overflow:ellipsis;
   opacity:var(--scroll-p,0);
   transform:translate(-50%,calc(-50% + (1 - var(--scroll-p,0)) * 6px))}
+/* below ~480px the centred title can still run into the .who name even truncated, and
+   the bottom nav's active icon+label already says which screen this is — drop it there */
+@media (max-width:480px){ .topbar-title{display:none} }
 .page-title{opacity:calc(1 - var(--scroll-p,0));
   transform:translateY(calc(var(--scroll-p,0) * -6px)) scale(calc(1 - var(--scroll-p,0) * .06));
   transform-origin:left center}
@@ -924,7 +928,13 @@ const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion:reduce)")
 // plain synchronous update everywhere else — nothing about the app depends on this running.
 function viewTransition(update) {
   if (!document.startViewTransition || prefersReducedMotion()) { update(); return; }
-  document.startViewTransition(() => update());
+  const t = document.startViewTransition(() => update());
+  // a fast second tap starts a new transition before the last one finished — the browser
+  // skips the old one and rejects its ready/finished promises with InvalidStateError; the
+  // update callback above still ran synchronously either way, so there's nothing to recover,
+  // just nothing to report as an uncaught rejection either
+  t.ready.catch(() => {});
+  t.finished.catch(() => {});
 }
 
 // empty state: large low-opacity icon above the message (§8)
@@ -967,8 +977,12 @@ function heroToday(ins, outs) {
 const NAV_ORDER = ["checkinout", "apartments", "schedule", "allbookings", "users"];
 let _prevRoute = route;
 
+// render() rebuilds only <main> on a normal update — the topbar and bottom nav are
+// long-lived DOM nodes patched in place by updateChrome(). A full topbar()+main+bottomNav()
+// mount only happens when #app has no <main> yet: first boot, or right after login (the
+// login screen replaced the whole #app tree, so the chrome nodes don't exist to patch).
 function render() {
-  if (!session) { renderLogin(); _prevRoute = null; return; }
+  if (!session) { renderLogin(); _prevRoute = null; _navPos = null; _segPos = {}; return; }
   const screen = route === "apartments" ? screenApartments()
     : route === "schedule" ? screenSchedule()
     : route === "allbookings" ? screenAllBookings()
@@ -976,22 +990,52 @@ function render() {
     : screenCheckInOut();
   // directional slide for real tab navigation; plain fade for an in-place refresh
   const from = NAV_ORDER.indexOf(_prevRoute), to = NAV_ORDER.indexOf(route);
-  const mainCls = from >= 0 && to >= 0 && from !== to ? (to > from ? "slide-fwd" : "slide-back") : "fade";
-  app.innerHTML = topbar() + `<main class="${mainCls}">${screen}</main>` + bottomNav();
+  const routeChanged = from >= 0 && to >= 0 && from !== to;
+  const mainCls = routeChanged ? (to > from ? "slide-fwd" : "slide-back") : "fade";
+  const existingMain = app.querySelector("main");
+  if (!existingMain) {
+    app.innerHTML = topbar() + `<main class="${mainCls}">${screen}</main>` + bottomNav();
+  } else {
+    existingMain.className = "";
+    void existingMain.offsetWidth;   // reflow so the fade/slide keyframes restart even on a same-name class
+    existingMain.className = mainCls;
+    existingMain.innerHTML = screen;
+    updateChrome();
+  }
   _prevRoute = route;
-  postRender();
+  postRender(routeChanged || !existingMain);
 }
 
-// runs after every render(): position segmented-control thumbs, roll changed counts
-function postRender() {
-  layoutSegThumbs();
+// patches the persistent topbar/bottom-nav DOM instead of recreating it — only
+// session.name, the active route, and the theme icon ever change on these nodes.
+function updateChrome() {
+  const who = $(".who");
+  if (who) who.textContent = session.name;
+  const themeBtn = document.querySelector('[data-action="theme"]');
+  if (themeBtn) themeBtn.innerHTML = themeIcon();
+  const title = $(".topbar-title");
+  if (title) title.textContent = ROUTE_TITLES[route] || "";
+  const navInner = document.querySelector(".nav-inner");
+  if (navInner) {
+    const wantUsers = isAdmin(), hasUsers = !!navInner.querySelector('[data-route="users"]');
+    if (wantUsers !== hasUsers) navInner.innerHTML = navLinksHtml();   // admin role flipped mid-session
+    else navInner.querySelectorAll("a[data-route]").forEach(a => a.classList.toggle("on", a.dataset.route === route));
+  }
+}
+
+// runs after every render(): position segmented-control thumbs, roll changed counts.
+// routeChanged means this screen's controls are brand-new DOM — snap them, don't FLIP.
+function postRender(routeChanged) {
+  layoutSegThumbs(routeChanged);
   layoutNavThumb();
   updateCounts();
 }
 
 /* --- bottom tab bar / desktop sidebar: one sliding gradient thumb, FLIP across re-renders.
    Works for both orientations — it reads the active link's own box, so a row (mobile) or a
-   column (desktop sidebar) both "just work". --- */
+   column (desktop sidebar) both "just work". The nav DOM node itself now persists across
+   in-place renders (see render()), so _navPos is only ever stale right after a full mount —
+   render() resets it to null on logout, right before the next login triggers that mount. --- */
 let _navPos = null;
 function layoutNavThumb() {
   const inner = document.querySelector(".nav-inner");
@@ -1035,18 +1079,24 @@ function onScroll() {
 }
 addEventListener("scroll", onScroll, { passive: true });
 
-/* --- segmented control: slide one thumb between button slots, FLIP across re-renders --- */
-const _segPos = {};
-function layoutSegThumbs() {
+/* --- segmented control: slide one thumb between button slots, FLIP across re-renders.
+   Cached per route+control, not just control name — Check-in/out's own zone tabs and the
+   plainZoneTabs() shared by Apartments/All Bookings all render data-seg="zone". Without the
+   route in the key, switching screens would FLIP from whichever screen last wrote that key,
+   landing the thumb in the wrong spot for a beat. On a real route change we also skip the
+   FLIP outright (routeChanged) and just snap: these are freshly-mounted nodes, not the same
+   control moving, so there's nothing legitimate to animate from. --- */
+let _segPos = {};
+function layoutSegThumbs(routeChanged) {
   document.querySelectorAll(".seg[data-seg]").forEach(seg => {
-    const key = seg.dataset.seg;
+    const key = `${route}:${seg.dataset.seg}`;
     const thumb = seg.querySelector(".seg-thumb");
     const on = seg.querySelector("button.on");
     if (!thumb) return;
-    if (!on) { thumb.style.opacity = "0"; return; }
+    if (!on) { thumb.style.opacity = "0"; delete _segPos[key]; return; }
     thumb.style.opacity = "1";
     const next = { x: on.offsetLeft, w: on.offsetWidth };
-    const prev = _segPos[key];
+    const prev = routeChanged ? null : _segPos[key];
     const put = p => { thumb.style.transform = `translateX(${p.x}px)`; thumb.style.width = `${p.w}px`; };
     if (prev && (prev.x !== next.x || prev.w !== next.w) && !prefersReducedMotion()) {
       thumb.style.transition = "none";
@@ -1059,6 +1109,8 @@ function layoutSegThumbs() {
     }
     _segPos[key] = next;
   });
+  // drop cached positions for controls that just went off-screen, so nothing stale is read later
+  if (routeChanged) for (const k in _segPos) if (!k.startsWith(route + ":")) delete _segPos[k];
 }
 
 /* --- roll a metric to its new value instead of snapping (§9) --- */
@@ -1089,6 +1141,12 @@ function themeIcon() {
   return dark ? I.sun : I.moon;
 }
 
+// every screen opens with the same title + optional admin-only "add" icon button row
+const pageHeader = (title, addAction, addLabel) => `<div class="between">
+    <h2 class="page-title">${title}</h2>
+    ${addAction && isAdmin() ? `<button class="iconbtn" data-action="${addAction}" aria-label="${addLabel}">${I.plus}</button>` : ""}
+  </div>`;
+
 // iOS-style Large Title: each screen's own big <h2 class="page-title"> shrinks/fades on scroll
 // (see onScroll below) while this compact title crossfades in, centred in the topbar.
 const ROUTE_TITLES = {
@@ -1108,17 +1166,21 @@ function topbar() {
   </header>`;
 }
 
-function bottomNav() {
+// split from bottomNav() so updateChrome() can regenerate just the links (thumb included)
+// on the rare mid-session admin promote/demote, without touching the persistent <nav> node
+function navLinksHtml() {
   const item = (r, label, icon, iconF) =>
     `<a href="#" data-action="nav" data-route="${r}" class="${route === r ? "on" : ""}">
       <span class="nav-ic">${icon}${iconF}</span><span>${label}</span></a>`;
-  return `<nav class="nav"><div class="nav-inner"><i class="nav-thumb"></i>
+  return `<i class="nav-thumb"></i>
     ${item("checkinout", "Check in/out", I.cal, I.calF)}
     ${item("apartments", "Apartments", I.grid, I.gridF)}
     ${item("schedule", "Schedule", I.table, I.tableF)}
     ${item("allbookings", "Bookings", I.list, I.listF)}
-    ${isAdmin() ? item("users", "Users", I.user, I.userF) : ""}
-  </div></nav>`;
+    ${isAdmin() ? item("users", "Users", I.user, I.userF) : ""}`;
+}
+function bottomNav() {
+  return `<nav class="nav"><div class="nav-inner">${navLinksHtml()}</div></nav>`;
 }
 
 /* ---- Check in / out ---- */
@@ -1148,10 +1210,7 @@ function screenCheckInOut() {
     : empty(`No ${kind === "in" ? "check-ins" : "check-outs"} on this day.`, I.cal);
 
   return `<div class="screen">
-    <div class="between">
-      <h2 class="page-title">Check in / out</h2>
-      ${isAdmin() ? `<button class="iconbtn" data-action="add-booking" aria-label="Add booking">${I.plus}</button>` : ""}
-    </div>
+    ${pageHeader("Check in / out", "add-booking", "Add booking")}
 
     ${heroToday(ins, outs)}
 
@@ -1328,10 +1387,7 @@ function bookingsBody(zone, query) {
 
 function screenApartments() {
   return `<div class="screen">
-    <div class="between">
-      <h2 class="page-title">Apartments</h2>
-      ${isAdmin() ? `<button class="iconbtn" data-action="add-apartment" aria-label="Add apartment">${I.plus}</button>` : ""}
-    </div>
+    ${pageHeader("Apartments", "add-apartment", "Add apartment")}
     ${plainZoneTabs()}
     ${searchField("apts-search", searchApts, "Search apartments…")}
     <div data-search-results="apts">${apartmentsBody(activeZone, searchApts)}</div>
@@ -1404,7 +1460,7 @@ function apartmentCard(a, i = 0) {
 
 function screenAllBookings() {
   return `<div class="screen">
-    <div class="between"><h2 class="page-title">All Bookings</h2></div>
+    ${pageHeader("All Bookings", "add-booking", "Add booking")}
     ${plainZoneTabs()}
     ${searchField("bookings-search", searchBookings, "Search guests or apartments…")}
     <div data-search-results="bookings">${bookingsBody(activeZone, searchBookings)}</div>
@@ -1484,9 +1540,7 @@ function screenSchedule() {
   }).join("");
 
   return `<div class="screen">
-    <div class="between">
-      <h2 class="page-title">Schedule</h2>
-    </div>
+    ${pageHeader("Schedule")}
 
     <div style="margin-top:14px">
       <div class="seg" data-seg="schedweek"><i class="seg-thumb"></i><button data-action="sched-thisweek" class="${isThisWeek ? "on" : ""}">This week</button></div>
@@ -1535,10 +1589,7 @@ function screenUsers() {
   if (!isAdmin()) return screenCheckInOut();
   const cards = ACCOUNTS.map(userCard).join("");
   return `<div class="screen">
-    <div class="between">
-      <h2 class="page-title">Users</h2>
-      <button class="iconbtn" data-action="add-user" aria-label="Add user">${I.plus}</button>
-    </div>
+    ${pageHeader("Users", "add-user", "Add user")}
     <div class="card" style="margin-top:14px">
       <div class="between">
         <div>
@@ -1907,7 +1958,8 @@ document.addEventListener("click", e => {
         search.value = "";
         combo.querySelector("[data-combo-list]").innerHTML =
           aptComboListHtml("", combo.querySelector('[name="apartmentId"]').value);
-        search.focus();
+        // no auto-focus: focusing a text input the instant this panel opens is what
+        // triggers the mobile zoom/keyboard-pop, not a font-size issue — let the user tap in
       }
       break;
     }
