@@ -988,16 +988,25 @@ function render() {
     : route === "allbookings" ? screenAllBookings()
     : route === "users" ? screenUsers()
     : screenCheckInOut();
-  // directional slide for real tab navigation; plain fade for an in-place refresh
+  // directional slide for real tab navigation; plain fade for an in-place refresh.
+  // A route change is always the callback of a viewTransition() call (see the "nav" case
+  // below) — when the browser actually runs that as a native transition, its own crossfade
+  // already provides the "new screen arrived" cue. Also playing our own slide-fwd/slide-back
+  // (plus the up-to-~650ms .stagger cascade it triggers on the children) *underneath* that
+  // ~230ms native crossfade means content is still visibly sliding/fading in well after the
+  // crossfade looks finished — that mismatch is what reads as lag. So: skip our own class
+  // when the native transition will actually run, and keep it as the fallback everywhere
+  // that transition doesn't exist (unsupported browser, reduced motion).
   const from = NAV_ORDER.indexOf(_prevRoute), to = NAV_ORDER.indexOf(route);
   const routeChanged = from >= 0 && to >= 0 && from !== to;
-  const mainCls = routeChanged ? (to > from ? "slide-fwd" : "slide-back") : "fade";
+  const nativeTransitionActive = routeChanged && !!document.startViewTransition && !prefersReducedMotion();
+  const mainCls = !routeChanged ? "fade" : nativeTransitionActive ? "" : (to > from ? "slide-fwd" : "slide-back");
   const existingMain = app.querySelector("main");
   if (!existingMain) {
     app.innerHTML = topbar() + `<main class="${mainCls}">${screen}</main>` + bottomNav();
   } else {
     existingMain.className = "";
-    void existingMain.offsetWidth;   // reflow so the fade/slide keyframes restart even on a same-name class
+    if (mainCls) void existingMain.offsetWidth;   // reflow so the fade/slide keyframes restart even on a same-name class
     existingMain.className = mainCls;
     existingMain.innerHTML = screen;
     updateChrome();
