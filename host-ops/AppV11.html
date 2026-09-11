@@ -982,7 +982,7 @@ let _prevRoute = route;
 // mount only happens when #app has no <main> yet: first boot, or right after login (the
 // login screen replaced the whole #app tree, so the chrome nodes don't exist to patch).
 function render() {
-  if (!session) { renderLogin(); _prevRoute = null; _navPos = null; _segPos = {}; return; }
+  if (!session) { renderLogin(); _prevRoute = null; _segPos = {}; return; }
   const screen = route === "apartments" ? screenApartments()
     : route === "schedule" ? screenSchedule()
     : route === "allbookings" ? screenAllBookings()
@@ -1031,12 +1031,16 @@ function postRender(routeChanged) {
   updateCounts();
 }
 
-/* --- bottom tab bar / desktop sidebar: one sliding gradient thumb, FLIP across re-renders.
+/* --- bottom tab bar / desktop sidebar: one sliding gradient thumb.
    Works for both orientations — it reads the active link's own box, so a row (mobile) or a
-   column (desktop sidebar) both "just work". The nav DOM node itself now persists across
-   in-place renders (see render()), so _navPos is only ever stale right after a full mount —
-   render() resets it to null on logout, right before the next login triggers that mount. --- */
-let _navPos = null;
+   column (desktop sidebar) both "just work". --- */
+// Nav clicks run inside viewTransition(), which snapshots the "after" DOM synchronously,
+// one tick before any requestAnimationFrame callback gets to run. A prev-paint→rAF→next-paint
+// echo (the technique layoutSegThumbs still needs, since ITS thumb node is recreated every
+// render) would freeze the transition's snapshot at the "prev" paint, then visibly snap once
+// the transition ends — that's the glitch. The nav's thumb node persists across renders now
+// (see render()), so a single synchronous write is enough: the CSS transition already on
+// .nav-thumb animates from whatever position is actually on screen, no echo needed.
 function layoutNavThumb() {
   const inner = document.querySelector(".nav-inner");
   const thumb = inner && inner.querySelector(".nav-thumb");
@@ -1044,24 +1048,12 @@ function layoutNavThumb() {
   if (!thumb) return;
   if (!on) { thumb.style.opacity = "0"; return; }
   thumb.style.opacity = "1";
-  const next = { x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight };
-  const prev = _navPos;
-  const put = p => {
-    thumb.style.transform = `translate(${p.x}px, ${p.y}px)`;
-    thumb.style.width = `${p.w}px`; thumb.style.height = `${p.h}px`;
-  };
-  if (prev && (prev.x !== next.x || prev.y !== next.y || prev.w !== next.w || prev.h !== next.h) && !prefersReducedMotion()) {
-    thumb.style.transition = "none";
-    put(prev);
-    void thumb.offsetWidth;                 // reflow so the next change animates
-    thumb.style.transition = "";
-    requestAnimationFrame(() => put(next));
-  } else {
-    put(next);
-  }
-  _navPos = next;
+  thumb.style.transform = `translate(${on.offsetLeft}px, ${on.offsetTop}px)`;
+  thumb.style.width = `${on.offsetWidth}px`;
+  thumb.style.height = `${on.offsetHeight}px`;
 }
-addEventListener("resize", () => { _navPos = null; layoutNavThumb(); });
+// mobile row <-> desktop sidebar column switch moves the active link's box instantly
+addEventListener("resize", layoutNavThumb);
 
 /* --- Large Title scroll effect: maps window scroll (0..36px) to --scroll-p (0..1) on the
    root element, rAF-throttled. Pure CSS custom property, so it survives every render() —
