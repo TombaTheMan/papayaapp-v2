@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": ".claude/skills/improve-codebase-architecture/SKILL.md",
       "computedHash": "47ba901693bf0c537e80edd39a2e26121f47c8d3d48f3417efa31fb73498be7a"
+    },
+    "thermo-nuclear-code-quality-review": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "skillPath": "cursor-team-kit/skills/thermo-nuclear-code-quality-review/SKILL.md",
+      "computedHash": "1be9e8126d5b4bd3000f1e654622faf1493c7df204f9460ba0c1e41e7227497f"
     }
   }
 }
