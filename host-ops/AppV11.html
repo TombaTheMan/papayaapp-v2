@@ -521,8 +521,14 @@ gmp-place-autocomplete{display:block;width:100%;font:inherit;
    tab bars once there's room for a persistent, always-visible nav column). Fills the full
    viewport width — only the reading column inside main is capped, like Mail/Notes on macOS. */
 @media (min-width:1024px){
+  /* explicit row track sizes so the topbar row stays content-sized (auto) and only the
+     nav/main row absorbs #app's own min-height:100dvh — without this, grid's default
+     align-content:stretch splits that extra height across BOTH auto rows proportionally to
+     their natural content size, so any screen with a shorter nav/main row (e.g. Apartments'
+     short list vs Check-in/out's hero tiles + cards) stretches the topbar row taller too,
+     visibly pushing the logo/theme-toggle down and out of their normal position */
   #app{max-width:none;width:100%;padding-bottom:32px;
-    display:grid;grid-template-columns:252px minmax(0,1fr);
+    display:grid;grid-template-columns:252px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);
     grid-template-areas:"topbar topbar" "nav main";column-gap:0;row-gap:0}
   .login-wrap{grid-column:1/-1;grid-row:1/-1}
 
