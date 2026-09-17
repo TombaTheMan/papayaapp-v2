@@ -400,17 +400,6 @@ gmp-place-autocomplete{display:block;width:100%;font:inherit;
 /* login */
 .login-wrap{min-height:100dvh;display:grid;place-items:center;padding:24px}
 .login{width:100%;max-width:340px;text-align:center}
-/* welcome hero: the traveler arriving at their apartment — sets the scene above the form */
-.login-hero{display:flex;align-items:flex-end;justify-content:center;height:148px;margin:0 auto 4px}
-.login-hero img{height:100%;width:auto;filter:drop-shadow(0 12px 20px rgba(20,16,45,.16))}
-.login-hero .hero-character{height:76%;width:auto;margin-left:-20px}
-.login-hero .for-dark{display:none}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]) .login-hero .for-light{display:none}
-  :root:not([data-theme="light"]) .login-hero .for-dark{display:block}
-}
-:root[data-theme="dark"] .login-hero .for-light{display:none}
-:root[data-theme="dark"] .login-hero .for-dark{display:block}
 .login .mark-lg{display:block;width:auto;height:auto;max-width:220px;margin:0 auto 22px;
   background:#fff;border-radius:18px;padding:16px 22px;
   box-shadow:0 14px 32px rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.6);
@@ -1665,12 +1654,6 @@ function userCard(a) {
 
 function renderLogin() {
   app.innerHTML = `<div class="login-wrap"><form class="login" data-form="login">
-    <div class="login-hero" aria-hidden="true">
-      <img class="hero-building for-light" src="images/building-day.png" alt="">
-      <img class="hero-building for-dark" src="images/building-night.png" alt="">
-      <img class="hero-character for-light" src="images/character-day.png" alt="">
-      <img class="hero-character for-dark" src="images/character-night.png" alt="">
-    </div>
     <img class="mark-lg" style="--i:0" src="${LOGO_SRC}" alt="Papaya Travel">
     <p class="dim" style="margin:4px 0 18px;--i:2">Check-ins & check-outs</p>
     <div class="field" style="--i:3"><label class="f">Username</label>
